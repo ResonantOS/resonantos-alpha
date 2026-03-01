@@ -74,6 +74,7 @@ const DEFAULT_CONFIG = {
   minSwapTokens: 50,
   compressionModel: "minimax/MiniMax-M2.5",
   narrativeModel: "minimax/MiniMax-M2.5", // MiniMax for narrative
+  narrativeUseToolMode: false, // true = force write_narrative tool (for models that hallucinate tool calls in text)
   maxParallelCompressions: 4,
   storageDir: "r-memory",
   archiveDir: "r-memory/archive",
@@ -1591,8 +1592,9 @@ async function updateNarrativeThread(messages) {
     const narrativeModel = buildModelObject(narrativeModelStr);
 
     if (!config.narrativeModel) await applyJitter(); // skip jitter when using direct model (no camouflage needed)
-    // Structured tool approach: channel M2.5's tool-calling instinct
-    const narrativeTool = {
+    // Structured tool approach: only when configured (for models that hallucinate tool calls)
+    const useToolMode = config.narrativeUseToolMode === true;
+    const narrativeTool = useToolMode ? {
       name: "write_narrative",
       description: "Write or update the narrative working memory document with updated content for each section.",
       parameters: {
@@ -1607,17 +1609,45 @@ async function updateNarrativeThread(messages) {
         },
         required: ["now", "session", "rivers"]
       }
-    };
+    } : null;
+
+    const textSystemPrompt = `# ROLE: Narrative Document Writer
+
+You maintain an EVOLVING narrative document that serves as working memory for an AI assistant. This document survives context resets (compaction) and is the ONLY bridge between memory states. You are a SEPARATE observer — use third person.
+
+OUTPUT FORMAT (strict markdown):
+
+## NOW
+3-5 sentences. What is happening RIGHT NOW. Self-contained for a reader with zero context.
+
+## Session
+One paragraph (~100 words). Arc of today. "Previously on..." style.
+
+## Rivers
+Active topic streams. Per river: ### topic-name, **Status:** active|paused|resolved, **Summary:** 1-2 sentences, **Key turns:** bullet list.
+
+## Decisions
+Accumulative bullet list. Format: - **[topic]:** decision (rationale).
+
+## Queue
+Pending tasks. Format: - [ ] task (context).
+
+## Errors
+Active problems. Remove when resolved.
+
+Be SPECIFIC: include paths, versions, configs, model names. Track WHY not just WHAT. Max 800 words total. EVOLVE from previous narrative — do NOT rewrite from scratch.`;
+
+    const toolSystemPrompt = "You maintain an evolving narrative document as working memory for an AI assistant. This survives context resets and is the ONLY bridge between memory states. You are a SEPARATE observer. Use third person. Call write_narrative with updated sections. Be SPECIFIC: paths, versions, configs, model names. Track WHY not just WHAT. Max 800 words total. EVOLVE from previous narrative.";
 
     const response = await completeSimple(narrativeModel, {
-      systemPrompt: "You maintain an evolving narrative document as working memory for an AI assistant. This survives context resets and is the ONLY bridge between memory states. You are a SEPARATE observer. Use third person. Call write_narrative with updated sections. Be SPECIFIC: paths, versions, configs, model names. Track WHY not just WHAT. Max 800 words total. EVOLVE from previous narrative.",
+      systemPrompt: useToolMode ? toolSystemPrompt : textSystemPrompt,
       messages: [{
         role: "user",
         content: [{ type: "text", text: contextText }],
         timestamp: Date.now(),
       }],
-      tools: [narrativeTool],
-    }, { maxTokens: 1600, toolChoice: { type: "tool", name: "write_narrative" }, apiKey: config.narrativeModel ? resolveApiKeyForProvider(narrativeModel.provider) : routing.apiKey });
+      ...(useToolMode && narrativeTool ? { tools: [narrativeTool] } : {}),
+    }, { maxTokens: 1600, ...(useToolMode ? { toolChoice: { type: "tool", name: "write_narrative" } } : {}), apiKey: config.narrativeModel ? resolveApiKeyForProvider(narrativeModel.provider) : routing.apiKey });
 
     if (response.stopReason === "error") {
       log("WARN", "Narrative call failed", { error: response.errorMessage });
