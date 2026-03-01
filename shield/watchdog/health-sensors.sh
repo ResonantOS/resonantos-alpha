@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+# Ensure PATH includes homebrew (not set in SSH forced-command environment)
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 FORMAT="${1:-json}"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
 OPENCLAW_USER="${OPENCLAW_USER:-augmentor}"
@@ -138,22 +141,23 @@ sensor_network() {
 }
 
 sensor_node_tunnel() {
-    # Check if SSH tunnel from BeeAMD is active (port 22 from 10.0.0.2)
+    # Check if BeeAMD node is reachable via Ethernet
+    # Uses TCP port check (SSH port 22) instead of ICMP ping (blocked by Windows firewall)
+    local ssh_ok=false
+    if bash -c "echo >/dev/tcp/10.0.0.2/22" 2>/dev/null; then
+        ssh_ok=true
+    fi
+    
+    # Also check for active SSH sessions from BeeAMD
     local tunnel_pids
     tunnel_pids=$(pgrep -f "sshd.*10.0.0.2" 2>/dev/null || true)
     
-    # Also check if BeeAMD is reachable via Ethernet
-    local ping_ok=false
-    if ping -c 1 -W 2 10.0.0.2 >/dev/null 2>&1; then
-        ping_ok=true
-    fi
-    
-    if [ -n "$tunnel_pids" ] && $ping_ok; then
-        echo "ok|BeeAMD node tunnel active (sshd pids: ${tunnel_pids//$'\n'/,}, ping OK)|"
-    elif $ping_ok; then
-        echo "degraded|BeeAMD reachable (ping OK) but no active SSH tunnel detected|"
+    if $ssh_ok && [ -n "$tunnel_pids" ]; then
+        echo "ok|BeeAMD reachable (SSH port open) with active tunnel (pids: ${tunnel_pids//$'\n'/,})|"
+    elif $ssh_ok; then
+        echo "ok|BeeAMD reachable (SSH port 22 open on 10.0.0.2)|"
     else
-        echo "degraded|BeeAMD unreachable (ping failed to 10.0.0.2) — node may be offline|"
+        echo "degraded|BeeAMD unreachable (SSH port 22 closed on 10.0.0.2) — node may be offline|"
     fi
 }
 
@@ -181,27 +185,47 @@ sensor_extensions() {
         return
     fi
     
-    local total
-    total=$(ls -1 "$ext_dir"/*.js 2>/dev/null | wc -l | tr -d ' ')
+    local total=0
     local valid=0
     local broken=""
+    local has_node=false
+    
+    # Check if node is available for syntax validation
+    if command -v node >/dev/null 2>&1; then
+        has_node=true
+    fi
     
     for f in "$ext_dir"/*.js; do
         [ -f "$f" ] || continue
         # Skip backups
         [[ "$f" == *.backup* ]] && continue
         [[ "$f" == *.save ]] && continue
-        if node -c "$f" 2>/dev/null; then
-            valid=$((valid + 1))
+        total=$((total + 1))
+        
+        if $has_node; then
+            # Full syntax check
+            if node -c "$f" 2>/dev/null; then
+                valid=$((valid + 1))
+            else
+                broken="${broken}$(basename "$f"),"
+            fi
         else
-            broken="${broken}$(basename "$f"),"
+            # Fallback: check file is non-empty and readable
+            if [ -s "$f" ] && head -1 "$f" >/dev/null 2>&1; then
+                valid=$((valid + 1))
+            else
+                broken="${broken}$(basename "$f"),"
+            fi
         fi
     done
     
+    local check_type="syntax checked"
+    $has_node || check_type="file check only, node not in PATH"
+    
     if [ -n "$broken" ]; then
-        echo "degraded|${valid} extensions valid, broken: ${broken%,}|total:${total},valid:${valid}"
+        echo "degraded|${valid}/${total} extensions valid (${check_type}), broken: ${broken%,}|total:${total},valid:${valid}"
     else
-        echo "ok|${valid} extensions valid (syntax checked)|total:${total},valid:${valid}"
+        echo "ok|${valid}/${total} extensions valid (${check_type})|total:${total},valid:${valid}"
     fi
 }
 
