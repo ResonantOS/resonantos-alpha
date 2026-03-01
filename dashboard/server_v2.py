@@ -5902,7 +5902,8 @@ def api_chatbot_update(bot_id):
 def api_chatbot_delete(bot_id):
     """Delete a chatbot and its data."""
     db = _get_db()
-    db.execute("DELETE FROM chatbot_messages WHERE chatbot_id=?", (bot_id,))
+    db.execute("DELETE FROM chatbot_messages WHERE conversation_id IN (SELECT id FROM chatbot_conversations WHERE chatbot_id=?)", (bot_id,))
+    db.execute("DELETE FROM knowledge_files WHERE chatbot_id=?", (bot_id,))
     db.execute("DELETE FROM chatbot_conversations WHERE chatbot_id=?", (bot_id,))
     db.execute("DELETE FROM chatbots WHERE id=?", (bot_id,))
     db.commit()
