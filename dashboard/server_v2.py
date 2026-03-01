@@ -1154,7 +1154,10 @@ def api_wallet():
         
         if not address:
             try:
-                address = str(_get_wallet_pubkey())
+                pk = _get_wallet_pubkey()
+                if pk is None:
+                    return jsonify({"error": "No wallet configured. Create a keypair first."}), 400
+                address = str(pk)
             except Exception:
                 return jsonify({"error": "address parameter required"}), 400
         
@@ -3154,7 +3157,8 @@ _AI_WALLET_PUBKEY = None  # Lazily loaded
 def _get_ai_pubkey_str():
     global _AI_WALLET_PUBKEY
     if _AI_WALLET_PUBKEY is None:
-        _AI_WALLET_PUBKEY = str(_get_wallet_pubkey())
+        pk = _get_wallet_pubkey()
+        _AI_WALLET_PUBKEY = str(pk) if pk is not None else None
     return _AI_WALLET_PUBKEY
 
 
@@ -3320,6 +3324,10 @@ def todo_page():
 @app.route("/ideas")
 def ideas_page():
     return render_template("ideas.html", active_page="ideas")
+
+@app.route("/intelligence")
+def intelligence_page():
+    return render_template("intelligence.html", active_page="intelligence")
 
 @app.route("/settings")
 def settings_page():
