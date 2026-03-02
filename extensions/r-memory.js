@@ -1505,7 +1505,8 @@ async function updateNarrativeThread(messages) {
           // Remove backtick-quoted tool refs
           cleanedText = cleanedText.replace(/`\[Tool:?\s*\w+\]`/gi, "(action)");
           // Remove XML-style tool patterns
-          cleanedText = cleanedText.replace(/<\/?(?:tool_code|tool|param|function_call|function_result|FunctionCallBegin|FunctionCallEnd)[^>]*>/gi, "");
+          cleanedText = cleanedText.replace(/<\/?(?:tool_code|tool|param|function_call|function_result|FunctionCallBegin|FunctionCallEnd|minimax:tool_call)[^>]*>/gi, "");
+          cleanedText = cleanedText.replace(/<minimax:tool_call>[\s\S]*?<\/minimax:tool_call>/gi, "");
           cleanedText = cleanedText.replace(/<FunctionCallBegin>[\s\S]*?<\/?FunctionCallEnd>\\?n?/gi, "");
           cleanedText = cleanedText.replace(/^.*\btool\s*=>\s*".*$/gm, "");
           // Clean excessive whitespace
@@ -1537,7 +1538,8 @@ async function updateNarrativeThread(messages) {
               // 5b. Remove backtick-quoted tool refs like `[Tool: exec]`
               cleaned = cleaned.replace(/`\[Tool:?\s*\w+\]`/gi, "(action)");
               // 5c. Remove XML-style tool patterns
-              cleaned = cleaned.replace(/<\/?(?:tool_code|tool|param|function_call|function_result|FunctionCallBegin|FunctionCallEnd)[^>]*>/gi, "");
+              cleaned = cleaned.replace(/<\/?(?:tool_code|tool|param|function_call|function_result|FunctionCallBegin|FunctionCallEnd|minimax:tool_call)[^>]*>/gi, "");
+              cleaned = cleaned.replace(/<minimax:tool_call>[\s\S]*?<\/minimax:tool_call>/gi, "");
               cleaned = cleaned.replace(/<FunctionCallBegin>[\s\S]*?<\/?FunctionCallEnd>\\?n?/gi, "");
               cleaned = cleaned.replace(/^.*\btool\s*=>\s*".*$/gm, "");
               // 6. Clean excessive whitespace
@@ -1798,9 +1800,33 @@ module.exports = function rMemoryExtension(api) {
       const trimmed = content.length > maxChars 
         ? content.slice(0, maxChars) + "\n\n[...truncated — full version in SESSION_THREAD.md]"
         : content;
-      const header = "<!-- R-Memory: Session Working Memory (auto-injected) -->\n";
-      log("DEBUG", "Injecting SESSION_THREAD.md into context", { chars: trimmed.length });
-      return { prependContext: header + trimmed };
+      let injection = "<!-- R-Memory: Session Working Memory (auto-injected) -->\n" + trimmed;
+      
+      // Also inject PLAN.md if it exists (externalized task state)
+      const repoDir = path.join(workspaceDir, "..");
+      const planPaths = [
+        path.join(workspaceDir, "PLAN.md"),
+        path.join(repoDir, "resonantos-augmentor", "PLAN.md"),
+        path.join(repoDir, "resonantos-alpha", "PLAN.md"),
+      ];
+      for (const planPath of planPaths) {
+        try {
+          if (fs.existsSync(planPath)) {
+            const planContent = fs.readFileSync(planPath, "utf-8").trim();
+            if (planContent && planContent.length > 50) {
+              const planTrimmed = planContent.length > 4000
+                ? planContent.slice(0, 4000) + "\n\n[...truncated]"
+                : planContent;
+              injection += "\n\n<!-- R-Memory: Active PLAN.md (auto-injected) -->\n" + planTrimmed;
+              log("DEBUG", "Injecting PLAN.md into context", { path: planPath, chars: planTrimmed.length });
+              break; // Only inject first found plan
+            }
+          }
+        } catch (pe) { /* skip unreadable plan files */ }
+      }
+      
+      log("DEBUG", "Injecting working memory into context", { totalChars: injection.length });
+      return { prependContext: injection };
     } catch (e) {
       log("WARN", "before_agent_start SESSION_THREAD injection failed", { error: e.message });
     }
