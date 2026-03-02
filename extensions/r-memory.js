@@ -986,6 +986,21 @@ RULES:
         }
       } catch (retryErr) { log("WARN", "Floor guard retry failed", { error: retryErr.message }); }
     }
+    // Deterministic fallback: if still over-compressed after retry, truncate original
+    const finalReduction = 1 - (compressedTokens / rawTokens);
+    if (finalReduction > floorThreshold) {
+      const targetChars = Math.round(rawText.length * (1 - target));
+      const truncated = rawText.slice(0, targetChars);
+      const lastBreak = Math.max(
+        truncated.lastIndexOf("\n\n"),
+        truncated.lastIndexOf(". "),
+        truncated.lastIndexOf(".\n")
+      );
+      const cleanCut = lastBreak > targetChars * 0.7 ? truncated.slice(0, lastBreak + 1) : truncated;
+      compressed = cleanCut + "\n\n[...deterministic truncation - model failed to compress to target]";
+      compressedTokens = estimateTokens(compressed);
+      log("WARN", "Deterministic fallback used", { targetChars, actualChars: compressed.length, rawChars: rawText.length });
+    }
     const saving = ((1 - compressedTokens / rawTokens) * 100).toFixed(1);
     log("DEBUG", "Block compressed", { rawTokens, compressedTokens, saving: `${saving}%`, target: `${(target * 100).toFixed(0)}%` });
     trackUsage("compression", rawTokens, compressedTokens);
@@ -1677,7 +1692,9 @@ Pending tasks. Format: - [ ] task (context).
 ## Errors
 Active problems. Remove when resolved.
 
-Be SPECIFIC: include paths, versions, configs, model names. Track WHY not just WHAT. Max 800 words total. EVOLVE from previous narrative — do NOT rewrite from scratch.`;
+Be SPECIFIC: include paths, versions, configs, model names. Track WHY not just WHAT. Max 800 words total. EVOLVE from previous narrative — do NOT rewrite from scratch.
+Use EXACT topic names from the conversation for Rivers. Do NOT invent, rephrase, or combine topic names.
+If a topic in the previous narrative no longer appears in recent events, mark its status as "paused" — do NOT remove it.`;
 
     const toolSystemPrompt = "You maintain an evolving narrative document as working memory for an AI assistant. This survives context resets and is the ONLY bridge between memory states. You are a SEPARATE observer. Use third person. Call write_narrative with updated sections. Be SPECIFIC: paths, versions, configs, model names. Track WHY not just WHAT. Max 800 words total. EVOLVE from previous narrative.";
 
@@ -1689,7 +1706,7 @@ Be SPECIFIC: include paths, versions, configs, model names. Track WHY not just W
         timestamp: Date.now(),
       }],
       ...(useToolMode && narrativeTool ? { tools: [narrativeTool] } : {}),
-    }, { maxTokens: 1600, ...(useToolMode ? { toolChoice: { type: "tool", name: "write_narrative" } } : {}), apiKey: config.narrativeModel ? resolveApiKeyForProvider(narrativeModel.provider) : routing.apiKey });
+    }, { maxTokens: config.narrativeMaxTokens || 2400, ...(useToolMode ? { toolChoice: { type: "tool", name: "write_narrative" } } : {}), apiKey: config.narrativeModel ? resolveApiKeyForProvider(narrativeModel.provider) : routing.apiKey });
 
     log("DEBUG", "Narrative response", { stopReason: response.stopReason, contentTypes: response.content.map(c => c.type), useToolMode, hasToolCall: !!response.content.find(c => c.type === "toolCall" || c.type === "tool_use") });
     try { const fs2 = require("fs"); fs2.writeFileSync(require("path").join(workspaceDir, "r-memory", "narrative-response-debug.json"), JSON.stringify(response, null, 2)); } catch(_) {}
