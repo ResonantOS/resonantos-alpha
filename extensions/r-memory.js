@@ -1779,6 +1779,33 @@ module.exports = function rMemoryExtension(api) {
     });
   }
 
+  /**
+   * before_agent_start: Inject SESSION_THREAD.md into context via prependContext.
+   * This ensures the narrative working memory is ALWAYS in the AI's token window,
+   * not dependent on the AI choosing to read it. Uses prependContext (not systemPrompt)
+   * to avoid overriding R-Awareness SSoT injection.
+   */
+  api.on("before_agent_start", async (event, ctx) => {
+    try {
+      init();
+      if (!config.enabled) return;
+      const threadPath = path.join(workspaceDir, "SESSION_THREAD.md");
+      if (!fs.existsSync(threadPath)) return;
+      const content = fs.readFileSync(threadPath, "utf-8").trim();
+      if (!content || content.length < 100) return; // Skip empty/template files
+      // Cap at ~2000 tokens (~8000 chars) to prevent context bloat
+      const maxChars = 8000;
+      const trimmed = content.length > maxChars 
+        ? content.slice(0, maxChars) + "\n\n[...truncated — full version in SESSION_THREAD.md]"
+        : content;
+      const header = "<!-- R-Memory: Session Working Memory (auto-injected) -->\n";
+      log("DEBUG", "Injecting SESSION_THREAD.md into context", { chars: trimmed.length });
+      return { prependContext: header + trimmed };
+    } catch (e) {
+      log("WARN", "before_agent_start SESSION_THREAD injection failed", { error: e.message });
+    }
+  });
+
   api.on("agent_start", () => {
     try { init(); lastProcessedBlockCount = 0; }
     catch (e) { console.error("[R-Memory] Init:", e.message); }
