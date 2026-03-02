@@ -74,7 +74,7 @@ const DEFAULT_CONFIG = {
   minSwapTokens: 50,
   compressionModel: "minimax/MiniMax-M2.5",
   narrativeModel: "minimax/MiniMax-M2.5", // MiniMax for narrative
-  narrativeUseToolMode: false, // true = force write_narrative tool (for models that hallucinate tool calls in text)
+  narrativeUseToolMode: true, // force write_narrative tool — prevents hallucinated tool calls in narrative output
   maxParallelCompressions: 4,
   storageDir: "r-memory",
   archiveDir: "r-memory/archive",
