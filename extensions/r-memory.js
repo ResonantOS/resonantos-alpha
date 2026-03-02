@@ -1623,7 +1623,7 @@ async function updateNarrativeThread(messages) {
         clean = clean.replace(/\[\/?(?:tool|path|cmd|action|params|file_path|command|Tool|TOOL_CALL)[:\s]?[^\]]*\]/gi, "");
         clean = clean.replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/gi, "");
         clean = clean.replace(/\{\s*tool\s*=>\s*"[\s\S]*?\}[\s\S]*?\}/g, "");
-        clean = clean.replace(/<\/?\(?:tool_code|tool|param|function_call|function_result|FunctionCallBegin|FunctionCallEnd|minimax:tool_call\)[^>]*>/gi, "");
+        clean = clean.replace(/<\/?(?:tool_code|tool|param|function_call|function_result|FunctionCallBegin|FunctionCallEnd|minimax:tool_call)[^>]*>/gi, "");
         clean = clean.replace(/<FunctionCallBegin>[\s\S]*?<\/?FunctionCallEnd>\\?n?/gi, "");
         clean = clean.replace(/<minimax:tool_call>[\s\S]*?<\/minimax:tool_call>/gi, "");
         clean = clean.replace(/<invoke\s+name=[^>]*>[\s\S]*?<\/invoke>/gi, "");
@@ -1761,49 +1761,7 @@ If a topic in the previous narrative no longer appears in recent events, mark it
       fs.appendFileSync(path.join(tdDir, "pairs.jsonl"), JSON.stringify({ ts, input: contextText, output: narrative, inputTokens, outputTokens }) + "\n");
     } catch (e) { /* non-fatal */ }
 
-    // === DETERMINISTIC OUTPUT VALIDATION GATE ===
-    // Reject hallucinated tool-call outputs entirely. Keep previous SESSION_THREAD.md unchanged.
-    // This is NOT cleanup (tried 5x, failed). This is full rejection + preserve last known good state.
-    const TOOL_HALLUCINATION_PATTERNS = [
-      /\[\/?TOOL_CALL\]/i,
-      /<minimax:tool_call>/i,
-      /<\/minimax:tool_call>/i,
-      /<FunctionCall/i,
-      /<FunctionCallBegin/i,
-      /<FunctionCallEnd/i,
-      /tool\s*=>\s*"/i,
-      /tool_name:\s/i,
-      /<invoke\s+name=/i,
-      /\[Tool:\s(?!.*##)/i,
-      /\{\s*tool\s*=>\s*/i,
-      /<tool_code>/i,
-      /<\/tool_code>/i,
-    ];
-    const isHallucinated = TOOL_HALLUCINATION_PATTERNS.some(p => p.test(narrative));
-    if (isHallucinated) {
-      log("WARN", "Narrative REJECTED: contains hallucinated tool-call syntax. Keeping previous SESSION_THREAD.md.", {
-        chars: narrative.length,
-        model: narrativeModelStr,
-        sample: narrative.slice(0, 150),
-      });
-      return;
-    }
-    if (narrative.length < 100) {
-      log("WARN", "Narrative REJECTED: too short (likely empty template).", { chars: narrative.length, model: narrativeModelStr });
-      return;
-    }
-    // Structural validation: a valid narrative MUST contain "## NOW" section
-    // Without this, the model is roleplaying/confused, not producing narrative
-    const hasStructure = /^##\s+NOW/m.test(narrative);
-    if (!hasStructure) {
-      log("WARN", "Narrative REJECTED: missing '## NOW' section — model confused or roleplaying.", {
-        chars: narrative.length,
-        model: narrativeModelStr,
-        sample: narrative.slice(0, 150),
-      });
-      return;
-    }
-    // === END VALIDATION GATE ===
+    // Output validation removed (2026-03-02): fix the input, don't paper over hallucination
 
     const content = [
       "# Session Thread — Working Memory",
