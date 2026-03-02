@@ -624,10 +624,18 @@ def _rmem_effective_models():
         compression_model = base_model
         narrative_model = narrative_override or base_model
 
-    return {
+    # Warn if MiniMax M2.5 is set for narrative (known hallucination issue)
+    warning = None
+    if narrative_model and "minimax-m2.5" in narrative_model.lower():
+        warning = "MiniMax M2.5 is incompatible with the narrative tracker (hallucinates tool calls). Defaulting to M2.1 at runtime."
+
+    result = {
         "compression": compression_model,
         "narrative": narrative_model,
     }
+    if warning:
+        result["warning"] = warning
+    return result
 
 def _rmem_history_blocks(session_id=None):
     """Read compressed blocks from history-{sessionId}.json files AND block-cache.json.

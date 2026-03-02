@@ -502,6 +502,7 @@ function renderHierarchy(agents) {
                         <select class="memory-model-select" onchange="updateNarrativeModel(this.value)" title="Narrative model" style="margin-top:0;">
                             ${narrCustomOpt}${narrOptions}
                         </select>
+                        ${narrCurrentModel.toLowerCase().includes('minimax-m2.5') ? '<div style="margin-top:6px;padding:6px 8px;background:#7f1d1d;border:1px solid #dc2626;border-radius:6px;font-size:11px;color:#fca5a5;">⚠️ MiniMax M2.5 is incompatible with the narrative tracker (hallucinates tool calls). R-Memory auto-downgrades to M2.1 at runtime.</div>' : ''}
                     </div>
                 </div>
             </div>`;

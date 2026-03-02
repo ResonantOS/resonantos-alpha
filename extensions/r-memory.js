@@ -73,8 +73,8 @@ const DEFAULT_CONFIG = {
   minCompressChars: 200,
   minSwapTokens: 50,
   compressionModel: "minimax/MiniMax-M2.5",
-  narrativeModel: "minimax/MiniMax-M2.5", // MiniMax for narrative
-  narrativeUseToolMode: true, // force write_narrative tool — prevents hallucinated tool calls in narrative output
+  narrativeModel: "minimax/MiniMax-M2.1", // M2.1 — M2.5 hallucinates tool calls in narrative output
+  narrativeUseToolMode: false, // off by default — tool mode only needed for models that hallucinate without it
   maxParallelCompressions: 4,
   storageDir: "r-memory",
   archiveDir: "r-memory/archive",
@@ -1578,6 +1578,12 @@ async function updateNarrativeThread(messages) {
     let narrativeModelStr;
     if (config.narrativeModel) {
       narrativeModelStr = config.narrativeModel;
+      // Auto-downgrade: MiniMax M2.5 hallucinates tool calls in narrative output — force M2.1
+      if (narrativeModelStr && narrativeModelStr.toLowerCase().includes("minimax-m2.5")) {
+        const downgraded = narrativeModelStr.replace(/MiniMax-M2\.5/i, "MiniMax-M2.1");
+        log("WARN", "Narrative: MiniMax M2.5 incompatible with narrative tracker — auto-downgrading to M2.1", { from: narrativeModelStr, to: downgraded });
+        narrativeModelStr = downgraded;
+      }
       log("DEBUG", "Narrative model from config", { model: narrativeModelStr });
     } else if (camouflage.enabled && camouflage.backgroundModels && camouflage.backgroundModels["openai-narrative"]) {
       const narrativeKey = resolveApiKeyForProvider(camouflage.preferredBackgroundProvider || "openai");
@@ -1596,18 +1602,13 @@ async function updateNarrativeThread(messages) {
     const useToolMode = config.narrativeUseToolMode === true;
     const narrativeTool = useToolMode ? {
       name: "write_narrative",
-      description: "Write or update the narrative working memory document with updated content for each section.",
+      description: "Write the full narrative working memory document as a single markdown string. Include sections: ## NOW (3-5 sentences, current state), ## Session (one paragraph arc of today), ## Rivers (active topics with status/summary), ## Decisions (bullet list), ## Queue (pending tasks), ## Errors (active problems).",
       parameters: {
         type: "object",
         properties: {
-          now: { type: "string", description: "NOW section: 3-5 sentences about what is happening RIGHT NOW. Self-contained for a reader with zero prior context." },
-          session: { type: "string", description: "Session section: One paragraph (~100 words) covering arc of today. Previously-on style." },
-          rivers: { type: "string", description: "Rivers section: Active topic streams in markdown. Per river: ### topic-name, Status, Summary, Key turns." },
-          decisions: { type: "string", description: "Decisions: Bullet list. Format: - **[topic]:** decision (rationale)." },
-          queue: { type: "string", description: "Queue: Pending tasks. Format: - [ ] task (context)." },
-          errors: { type: "string", description: "Errors: Active problems. Format: - **[topic]:** issue -> status." }
+          content: { type: "string", description: "The complete narrative document in markdown. Must include ## NOW, ## Session, ## Rivers sections at minimum. Be specific: include file paths, model names, versions, config values. Use third person. Max 800 words." }
         },
-        required: ["now", "session", "rivers"]
+        required: ["content"]
       }
     } : null;
 
@@ -1649,6 +1650,9 @@ Be SPECIFIC: include paths, versions, configs, model names. Track WHY not just W
       ...(useToolMode && narrativeTool ? { tools: [narrativeTool] } : {}),
     }, { maxTokens: 1600, ...(useToolMode ? { toolChoice: { type: "tool", name: "write_narrative" } } : {}), apiKey: config.narrativeModel ? resolveApiKeyForProvider(narrativeModel.provider) : routing.apiKey });
 
+    log("DEBUG", "Narrative response", { stopReason: response.stopReason, contentTypes: response.content.map(c => c.type), useToolMode, hasToolCall: !!response.content.find(c => c.type === "toolCall" || c.type === "tool_use") });
+    try { const fs2 = require("fs"); fs2.writeFileSync(require("path").join(workspaceDir, "r-memory", "narrative-response-debug.json"), JSON.stringify(response, null, 2)); } catch(_) {}
+
     if (response.stopReason === "error") {
       log("WARN", "Narrative call failed", { error: response.errorMessage });
       trackUsage("narrative", estimateTokens(contextText), 0, true);
@@ -1669,14 +1673,12 @@ Be SPECIFIC: include paths, versions, configs, model names. Track WHY not just W
       }
     } else {
       const args = toolCall.input || toolCall.args || {};
-      const sections = [];
-      sections.push("## NOW\n" + (args.now || "_No update_") + "\n");
-      sections.push("## Session\n" + (args.session || "_No update_") + "\n");
-      sections.push("## Rivers\n" + (args.rivers || "_No update_") + "\n");
-      if (args.decisions) sections.push("## Decisions\n" + args.decisions + "\n");
-      if (args.queue) sections.push("## Queue\n" + args.queue + "\n");
-      if (args.errors) sections.push("## Errors\n" + args.errors + "\n");
-      narrative = sections.join("\n");
+      log("DEBUG", "Narrative tool args", { keys: Object.keys(args), contentLen: (args.content||"").length });
+      narrative = args.content || "";
+      if (!narrative || narrative.length < 50) {
+        log("WARN", "Narrative: write_narrative called with empty/short content", { len: (narrative||"").length });
+        return;
+      }
     }
 
     const inputTokens = estimateTokens(contextText);
