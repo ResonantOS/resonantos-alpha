@@ -55,6 +55,7 @@ except ImportError:
 
 OPENCLAW_HOME = Path.home() / ".openclaw"
 OPENCLAW_CONFIG = OPENCLAW_HOME / "openclaw.json"
+SSOT_ACCESS_FILE = Path("~/.openclaw/ssot_access.json").expanduser()
 WORKSPACE = OPENCLAW_HOME / "workspace"
 SSOT_ROOT = WORKSPACE / "resonantos-augmentor" / "ssot"
 AGENTS_DIR = OPENCLAW_HOME / "agents"
@@ -150,6 +151,47 @@ def _read_gw_token():
         return ""
 
 GW_TOKEN = _read_gw_token()
+
+
+def _load_ssot_access_store():
+    try:
+        if SSOT_ACCESS_FILE.exists():
+            data = json.loads(SSOT_ACCESS_FILE.read_text())
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def _read_ssot_access(agent_id, levels=("L0", "L1", "L2")):
+    normalized = {level: False for level in levels}
+    if not agent_id:
+        return normalized
+
+    store = _load_ssot_access_store()
+    access = store.get(agent_id, {})
+    if not isinstance(access, dict):
+        return normalized
+
+    for level in levels:
+        normalized[level] = bool(access.get(level, normalized[level]))
+    return normalized
+
+
+def _write_ssot_access(agent_id, access, levels=("L0", "L1", "L2")):
+    if not agent_id:
+        raise ValueError("agent_id is required")
+
+    normalized = {level: False for level in levels}
+    if isinstance(access, dict):
+        for level in levels:
+            normalized[level] = bool(access.get(level, normalized[level]))
+
+    store = _load_ssot_access_store()
+    store[agent_id] = normalized
+    SSOT_ACCESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SSOT_ACCESS_FILE.write_text(json.dumps(store, indent=2))
 
 # Solana wallet helper functions
 def _get_wallet_pubkey():
@@ -3415,6 +3457,427 @@ def intelligence_page():
 def settings_page():
     return render_template("settings.html", active_page="settings")
 
+
+@app.route("/api/knowledge/base")
+def api_knowledge_base():
+    """Return knowledge base structure and indexed status."""
+    kb_root = OPENCLAW_HOME / "knowledge"
+    common_dir = (kb_root / "common")
+    common_dir_resolved = common_dir.resolve()
+
+    def _ordered_unique(values):
+        out = []
+        seen = set()
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            out.append(value)
+        return out
+
+    def _normalize_path(path_str):
+        try:
+            return str(Path(path_str).expanduser().resolve())
+        except Exception:
+            return str(Path(path_str).expanduser())
+
+    def _list_agent_ids(cfg):
+        agents_cfg = cfg.get("agents", {}) if isinstance(cfg, dict) else {}
+        discovered = []
+        if isinstance(agents_cfg.get("list"), list):
+            for item in agents_cfg.get("list", []):
+                if isinstance(item, dict):
+                    aid = str(item.get("id", "")).strip()
+                    if aid:
+                        discovered.append(aid)
+        for key, value in agents_cfg.items():
+            if key in {"defaults", "list"}:
+                continue
+            if isinstance(value, dict):
+                discovered.append(key)
+
+        preferred = ["main", "voice", "coder"]
+        ordered = [aid for aid in preferred if aid in discovered]
+        ordered.extend([aid for aid in discovered if aid not in preferred])
+        return _ordered_unique(ordered)
+
+    def _agent_extra_paths(cfg, agent_id):
+        agents_cfg = cfg.get("agents", {}) if isinstance(cfg, dict) else {}
+        defaults = (
+            agents_cfg.get("defaults", {})
+            .get("memorySearch", {})
+            .get("extraPaths", [])
+        )
+        out = list(defaults) if isinstance(defaults, list) else []
+
+        # Legacy config style: agents.<id>.memorySearch.extraPaths
+        legacy_cfg = agents_cfg.get(agent_id, {})
+        if isinstance(legacy_cfg, dict):
+            legacy_paths = legacy_cfg.get("memorySearch", {}).get("extraPaths")
+            if isinstance(legacy_paths, list):
+                out = list(legacy_paths)
+
+        # Current config style: agents.list[].memorySearch.extraPaths
+        for item in agents_cfg.get("list", []):
+            if not isinstance(item, dict) or item.get("id") != agent_id:
+                continue
+            list_paths = item.get("memorySearch", {}).get("extraPaths")
+            if isinstance(list_paths, list):
+                out = list(list_paths)
+            break
+
+        return [str(p) for p in out]
+
+    try:
+        config = json.loads(OPENCLAW_CONFIG.read_text()) if OPENCLAW_CONFIG.exists() else {}
+    except Exception:
+        config = {}
+
+    agent_ids = _list_agent_ids(config)
+    common_access = {}
+    extra_paths = {}
+    for aid in agent_ids:
+        paths = _agent_extra_paths(config, aid)
+        normalized = {_normalize_path(p) for p in paths}
+        extra_paths[aid] = paths
+        common_access[aid] = str(common_dir_resolved) in normalized
+
+    folders = {}
+    if kb_root.exists():
+        for folder in sorted(kb_root.iterdir(), key=lambda p: p.name.lower()):
+            if not folder.is_dir():
+                continue
+            files = []
+            for f in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
+                if not f.is_file():
+                    continue
+                try:
+                    st = f.stat()
+                    files.append({
+                        "name": f.name,
+                        "size": st.st_size,
+                        "modified": int(st.st_mtime * 1000),
+                        "path": str(f.relative_to(kb_root)),
+                    })
+                except Exception:
+                    continue
+            folders[folder.name] = {
+                "path": str(folder),
+                "fileCount": len(files),
+                "files": files,
+                "totalFiles": len(files),
+            }
+
+    return jsonify(
+        {
+            "folders": folders,
+            "extraPaths": extra_paths,
+            "commonAccess": common_access,
+            "agentOrder": agent_ids,
+            "kbRoot": str(kb_root),
+            "commonFolder": "common",
+        }
+    )
+
+
+@app.route("/api/knowledge/common-access", methods=["POST"])
+def api_knowledge_common_access():
+    """Enable/disable common knowledge folder access per agent."""
+    data = request.get_json(silent=True) or {}
+    agent_id = str(data.get("agentId", "")).strip()
+    enabled = bool(data.get("enabled"))
+    if not agent_id:
+        return jsonify({"error": "agentId required"}), 400
+
+    kb_root = OPENCLAW_HOME / "knowledge"
+    common_dir = (kb_root / "common").resolve()
+
+    try:
+        cfg = json.loads(OPENCLAW_CONFIG.read_text()) if OPENCLAW_CONFIG.exists() else {}
+    except Exception as e:
+        return jsonify({"error": f"Failed to read config: {e}"}), 500
+
+    if "agents" not in cfg or not isinstance(cfg["agents"], dict):
+        cfg["agents"] = {}
+    agents_cfg = cfg["agents"]
+    if "list" not in agents_cfg or not isinstance(agents_cfg["list"], list):
+        agents_cfg["list"] = []
+
+    # Prefer current config style: agents.list[]
+    entry = None
+    for item in agents_cfg["list"]:
+        if isinstance(item, dict) and item.get("id") == agent_id:
+            entry = item
+            break
+    if entry is None:
+        entry = {"id": agent_id}
+        agents_cfg["list"].append(entry)
+
+    if "memorySearch" not in entry or not isinstance(entry["memorySearch"], dict):
+        entry["memorySearch"] = {}
+    current_paths = entry["memorySearch"].get("extraPaths", [])
+    if not isinstance(current_paths, list):
+        current_paths = []
+
+    normalized_paths = []
+    seen = set()
+    for path_value in current_paths:
+        p = str(path_value)
+        if p in seen:
+            continue
+        seen.add(p)
+        normalized_paths.append(p)
+
+    common_path = str(common_dir)
+    present = False
+    for p in normalized_paths:
+        try:
+            if Path(p).expanduser().resolve() == common_dir:
+                present = True
+                break
+        except Exception:
+            continue
+
+    if enabled and not present:
+        normalized_paths.append(common_path)
+    if not enabled:
+        filtered = []
+        for p in normalized_paths:
+            try:
+                if Path(p).expanduser().resolve() == common_dir:
+                    continue
+            except Exception:
+                pass
+            filtered.append(p)
+        normalized_paths = filtered
+
+    entry["memorySearch"]["extraPaths"] = normalized_paths
+
+    try:
+        OPENCLAW_CONFIG.write_text(json.dumps(cfg, indent=2))
+    except Exception as e:
+        return jsonify({"error": f"Failed to write config: {e}"}), 500
+
+    return jsonify(
+        {
+            "ok": True,
+            "agentId": agent_id,
+            "enabled": enabled,
+            "commonPath": common_path,
+            "extraPaths": normalized_paths,
+        }
+    )
+
+
+@app.route("/api/knowledge/ssot")
+def api_knowledge_ssot():
+    """Return SSoT folders and per-agent level access config."""
+    ssot_root = (Path.home() / "resonantos-augmentor" / "ssot").expanduser()
+    levels = ("L0", "L1", "L2")
+
+    def _ordered_unique(values):
+        out = []
+        seen = set()
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            out.append(value)
+        return out
+
+    def _list_agent_ids(cfg):
+        agents_cfg = cfg.get("agents", {}) if isinstance(cfg, dict) else {}
+        discovered = []
+        if isinstance(agents_cfg.get("list"), list):
+            for item in agents_cfg.get("list", []):
+                if isinstance(item, dict):
+                    aid = str(item.get("id", "")).strip()
+                    if aid:
+                        discovered.append(aid)
+        for key, value in agents_cfg.items():
+            if key in {"defaults", "list"}:
+                continue
+            if isinstance(value, dict):
+                discovered.append(key)
+
+        preferred = ["main", "voice", "coder"]
+        ordered = [aid for aid in preferred if aid in discovered]
+        ordered.extend([aid for aid in discovered if aid not in preferred])
+        return _ordered_unique(ordered)
+
+    try:
+        config = json.loads(OPENCLAW_CONFIG.read_text()) if OPENCLAW_CONFIG.exists() else {}
+    except Exception:
+        config = {}
+
+    agent_ids = _list_agent_ids(config)
+    if not agent_ids:
+        agent_ids = ["main", "voice", "coder"]
+
+    level_info = {}
+    for level in levels:
+        level_dir = (ssot_root / level)
+        exists = level_dir.exists() and level_dir.is_dir()
+        file_count = 0
+        markdown_count = 0
+        if exists:
+            for item in level_dir.rglob("*"):
+                if not item.is_file() or item.name.startswith("."):
+                    continue
+                file_count += 1
+                if item.suffix.lower() == ".md":
+                    markdown_count += 1
+        level_info[level] = {
+            "path": str(level_dir),
+            "exists": exists,
+            "fileCount": file_count,
+            "markdownCount": markdown_count,
+        }
+
+    ssot_access = {agent_id: _read_ssot_access(agent_id, levels) for agent_id in agent_ids}
+
+    return jsonify(
+        {
+            "ssotRoot": str(ssot_root),
+            "levels": level_info,
+            "agentOrder": agent_ids,
+            "ssotAccess": ssot_access,
+        }
+    )
+
+
+@app.route("/api/knowledge/ssot-access", methods=["POST"])
+def api_knowledge_ssot_access():
+    """Enable/disable access to a single SSoT level per agent."""
+    data = request.get_json(silent=True) or {}
+    agent_id = str(data.get("agentId", "")).strip()
+    level = str(data.get("level", "")).strip().upper()
+    enabled = bool(data.get("enabled"))
+    valid_levels = {"L0", "L1", "L2"}
+
+    if not agent_id:
+        return jsonify({"error": "agentId required"}), 400
+    if level not in valid_levels:
+        return jsonify({"error": "level must be one of L0, L1, L2"}), 400
+
+    try:
+        normalized_access = _read_ssot_access(agent_id)
+    except Exception as e:
+        return jsonify({"error": f"Failed to read SSoT access: {e}"}), 500
+
+    normalized_access[level] = enabled
+
+    try:
+        _write_ssot_access(agent_id, normalized_access)
+    except Exception as e:
+        return jsonify({"error": f"Failed to write SSoT access: {e}"}), 500
+
+    level_path = str((Path.home() / "resonantos-augmentor" / "ssot" / level).expanduser())
+    return jsonify(
+        {
+            "ok": True,
+            "agentId": agent_id,
+            "level": level,
+            "enabled": enabled,
+            "levelPath": level_path,
+            "ssotAccess": normalized_access,
+        }
+    )
+
+
+@app.route("/api/knowledge/file")
+def api_knowledge_file():
+    """Read content of a knowledge file."""
+    kb_root = (OPENCLAW_HOME / "knowledge").resolve()
+    raw_path = request.args.get("path", "").strip()
+    if not raw_path:
+        return jsonify({"error": "path required"}), 400
+
+    candidate = Path(raw_path)
+    filepath = candidate if candidate.is_absolute() else kb_root / candidate
+    try:
+        resolved = filepath.expanduser().resolve()
+    except Exception:
+        return jsonify({"error": "Invalid path"}), 400
+
+    if not resolved.is_relative_to(kb_root):
+        return jsonify({"error": "Access denied"}), 403
+    if not resolved.exists():
+        return jsonify({"error": "File not found"}), 404
+    if not resolved.is_file():
+        return jsonify({"error": "Not a file"}), 400
+
+    try:
+        raw = resolved.read_bytes()
+        content = raw.decode("utf-8", errors="replace")
+        st = resolved.stat()
+        return jsonify(
+            {
+                "path": str(resolved.relative_to(kb_root)),
+                "name": resolved.name,
+                "content": content,
+                "size": st.st_size,
+                "modified": int(st.st_mtime * 1000),
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/upload", methods=["POST"])
+def api_knowledge_upload():
+    """Upload a file to a knowledge folder."""
+    kb_root = (OPENCLAW_HOME / "knowledge").resolve()
+    folder_raw = (request.form.get("folder") or request.form.get("target") or "").strip()
+    if not folder_raw:
+        return jsonify({"error": "folder required"}), 400
+
+    folder_path = Path(folder_raw)
+    if folder_path.is_absolute() or ".." in folder_path.parts:
+        return jsonify({"error": "Invalid folder"}), 400
+
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"error": "file required"}), 400
+
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(file.filename).name).strip("._")
+    if not safe_name:
+        return jsonify({"error": "Invalid filename"}), 400
+
+    target_dir = (kb_root / folder_path).resolve()
+    if not target_dir.is_relative_to(kb_root):
+        return jsonify({"error": "Access denied"}), 403
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    target_file = target_dir / safe_name
+    if target_file.exists():
+        stem, suffix = target_file.stem, target_file.suffix
+        target_file = target_dir / f"{stem}_{int(time.time())}{suffix}"
+
+    try:
+        file.save(str(target_file))
+        st = target_file.stat()
+        return jsonify(
+            {
+                "ok": True,
+                "folder": str(target_dir.relative_to(kb_root)),
+                "name": target_file.name,
+                "path": str(target_file.relative_to(kb_root)),
+                "size": st.st_size,
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/index", methods=["POST"])
+def api_knowledge_index():
+    """Trigger re-indexing of knowledge folders."""
+    # This is a placeholder - actual indexing happens automatically
+    # when OpenClaw detects file changes
+    return jsonify({"status": "triggered", "message": "Knowledge folders will be re-indexed on next file change"})
+
+
 @app.route("/ssot")
 def ssot_page():
     return render_template("ssot.html", active_page="ssot")
@@ -5100,26 +5563,8 @@ def api_token_savings():
 
     comp_cost = _ts_component_cost(comp_rates, comp_input, comp_output)
     nar_cost = _ts_component_cost(nar_rates, nar_input, nar_output)
-    _add_component(
-        "r-memory-compression",
-        "R-Memory Compression",
-        comp_model,
-        comp_input,
-        comp_output,
-        comp_cost,
-        "~/.openclaw/workspace/r-memory/usage-stats.json",
-        False,
-    )
-    _add_component(
-        "r-memory-narrative",
-        "R-Memory Narrative",
-        nar_model,
-        nar_input,
-        nar_output,
-        nar_cost,
-        "~/.openclaw/workspace/r-memory/usage-stats.json",
-        False,
-    )
+    # _add_component("r-memory-compression", ...) # removed
+    # _add_component("r-memory-narrative", ...) # removed
 
     hb_input = hb_calls * _ts_int(assumptions.get("heartbeatInputTokensPerCall"), 700)
     hb_output = hb_calls * _ts_int(assumptions.get("heartbeatOutputTokensPerCall"), 140)
@@ -6359,18 +6804,23 @@ def api_shield_guard_unlock():
 
 @app.route("/api/logician/status")
 def api_logician_status():
-    """Read Logician monitor status file (deterministic, no AI)."""
-    status_file = os.path.join(
-        str(Path.home()), "resonantos-augmentor", "logician", "monitor", "status.json"
-    )
+    """Live-check Logician mangle server (socket existence + process running)."""
+    import subprocess, datetime
+    mangle_sock = "/tmp/mangle.sock"
+    sock_exists = os.path.exists(mangle_sock)
     try:
-        with open(status_file) as f:
-            data = json.load(f)
-        return jsonify(data)
-    except FileNotFoundError:
-        return jsonify({"status": "unknown", "error": "monitor not running"})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)})
+        result = subprocess.run(["pgrep", "-f", "mangle-server"], capture_output=True, text=True, timeout=5)
+        process_running = result.returncode == 0
+    except Exception:
+        process_running = False
+    now = datetime.datetime.utcnow().isoformat() + "Z"
+    if sock_exists and process_running:
+        return jsonify({"status": "healthy", "lastCheck": now, "ok": True, "source": "live-check"})
+    else:
+        reasons = []
+        if not sock_exists: reasons.append("mangle socket not found")
+        if not process_running: reasons.append("mangle-server process not running")
+        return jsonify({"status": "down", "ok": False, "error": "; ".join(reasons), "lastCheck": now, "source": "live-check"})
 
 
 
@@ -7003,6 +7453,38 @@ def api_todo_delete_standalone(todo_id):
     todos = [t for t in todos if t["id"] != todo_id]
     _save_standalone_todos(todos)
     return jsonify({"ok": True})
+
+
+@app.route("/api/cron/jobs")
+def api_cron_jobs():
+    """Return all cron jobs with schedule and status."""
+    jobs_file = os.path.join(str(Path.home()), ".openclaw", "cron", "jobs.json")
+    try:
+        with open(jobs_file) as f:
+            data = json.load(f)
+        jobs = data.get("jobs", [])
+        result = []
+        for job in jobs:
+            sched = job.get("schedule", {})
+            state = job.get("state", {})
+            payload = job.get("payload", {})
+            result.append({
+                "id": job.get("id"),
+                "name": job.get("name", "Unnamed"),
+                "enabled": job.get("enabled", False),
+                "cronExpr": sched.get("expr", ""),
+                "tz": sched.get("tz", "UTC"),
+                "lastStatus": state.get("lastStatus", "unknown"),
+                "lastRunAtMs": state.get("lastRunAtMs"),
+                "nextRunAtMs": state.get("nextRunAtMs"),
+                "consecutiveErrors": state.get("consecutiveErrors", 0),
+                "model": payload.get("model", ""),
+            })
+        return jsonify({"jobs": result})
+    except FileNotFoundError:
+        return jsonify({"jobs": [], "error": "jobs.json not found"})
+    except Exception as e:
+        return jsonify({"jobs": [], "error": str(e)})
 
 
 # ---------------------------------------------------------------------------
