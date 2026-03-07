@@ -314,7 +314,7 @@ openclaw cron add --name "Memory Archivist" --cron "30 5 * * *" --tz "Europe/Rom
 Help user join the ResonantOS DAO step by step:
 
 **Step 1: Download Phantom Wallet**
-- Guide user to: https://phantom.com/
+- Official link: https://phantom.com/
 - Install browser extension
 
 **Step 2: Save Recovery Phrase (CRITICAL)**
@@ -323,7 +323,7 @@ Help user join the ResonantOS DAO step by step:
 - Store in a secure physical location (safe, locked drawer)
 
 **Step 3: Get Free SOL on DevNet**
-- Guide user to: https://faucet.solana.com/
+- Official link: https://faucet.solana.com/
 - Get DevNet SOL for testing
 
 **Step 4: Create AI Agent's Own Wallet**
@@ -337,7 +337,8 @@ Help user join the ResonantOS DAO step by step:
 - Store securely - the AI cannot access funds without it
 
 **Step 6: Create Symbiotic Wallet & NFTs via Dashboard**
-- Guide user to Dashboard → Wallet section
+- Dashboard link: http://localhost:19100 (or user's deployed URL)
+- Navigate to Wallet section
 - Create Symbiotic Wallet (uses both user + AI wallets)
 - Generate NFTs:
   - Identity NFT (user's on-chain identity)
