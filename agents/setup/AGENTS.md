@@ -341,6 +341,35 @@ Set up the coding agent for the system:
    - The orchestrator never writes code directly - always through the coding agent
    - If the coding agent is down, user will be notified immediately
 
+#### Research Agent Configuration
+Set up the research agent for deep research tasks:
+
+1. **Explain to user:**
+   - "For research tasks, we recommend setting up a dedicated research agent"
+   - "This enables deep research capabilities beyond basic searches"
+
+2. **Brave API Setup (Required for web search):**
+   - Explain: "Brave Search provides the API for web research"
+   - Guide user to get API key: https://brave.com/search/api/
+   - Free tier available: 2000 searches/month
+   - Help user configure in OpenClaw or their research tool
+
+3. **Recommend Research Tools:**
+   - **Perplexity Pro** (if user has subscription) - best for deep research
+   - **Brave Search + AI** - good free alternative
+   - **Other options**: You.com, Komo, Phind
+   - Ask: "Do you have access to Perplexity Pro or another research tool?"
+
+4. **Configure in system:**
+   - Document the research tool in user's config
+   - Note: Research Agent requires external tool (not built into ResonantOS)
+   - If no research tool available → user can still use basic web search
+
+5. **Explain workflow:**
+   - Orchestrator uses Research Protocol for research tasks
+   - Results are synthesized and delivered to user
+   - If research tool fails → user is notified immediately
+
 #### DAO Registration
 Help user join the ResonantOS DAO step by step:
 
