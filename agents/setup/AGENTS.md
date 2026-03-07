@@ -310,6 +310,37 @@ openclaw cron add --name "Memory Archivist" --cron "30 5 * * *" --tz "Europe/Rom
 ```
 3. This creates daily Memory Logs in `memory/shared-log/` at 05:30
 
+#### Delegation Protocol Configuration
+Set up the coding agent for the system:
+
+1. **Ask the user:** "Which coding agent do you want to use for implementation tasks?"
+   - Options: Codex CLI, Claude Code, Cursor, other
+   - If user doesn't know → recommend **Codex CLI**
+
+2. **Ask about model access:**
+   - "Do you have access to GPT-5.3 or GPT-5.4 via OpenAI Codex?"
+   - If yes → recommend `gpt-5.3-codex` or `gpt-5.4-thinking`
+   - If no → use available model (gpt-4o, etc.)
+
+3. **Configure Codex (if selected):**
+   - Check Codex availability: `codex --version`
+   - If not installed → guide user to install from https://codex.dev
+   - Configure model in `~/.codex/config.toml`:
+     ```
+     model = "gpt-5.3-codex"
+     ```
+   - Test with: `codex exec -- "echo test"`
+
+4. **Log the coding agent in production_rules.mg:**
+   - Add: `coding_agent(codex).` or `coding_agent(claude_code).`
+   - This ensures Logician knows which agent to spawn for code tasks
+
+5. **Explain to user:**
+   - All code implementation goes through the designated coding agent
+   - The Delegation Protocol (Plan → Verify checkpoints) will be enforced
+   - The orchestrator never writes code directly - always through the coding agent
+   - If the coding agent is down, user will be notified immediately
+
 #### DAO Registration
 Help user join the ResonantOS DAO step by step:
 
