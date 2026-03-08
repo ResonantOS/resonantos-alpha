@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.resonantos.watchdog</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/augmentor/resonantos-augmentor/watchdog/watchdog.py</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/augmentor/resonantos-augmentor/watchdog/watchdog.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/augmentor/resonantos-augmentor/watchdog/watchdog.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/augmentor/resonantos-augmentor/watchdog</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

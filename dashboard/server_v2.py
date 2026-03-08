@@ -55,7 +55,6 @@ except ImportError:
 
 OPENCLAW_HOME = Path.home() / ".openclaw"
 OPENCLAW_CONFIG = OPENCLAW_HOME / "openclaw.json"
-SSOT_ACCESS_FILE = Path("~/.openclaw/ssot_access.json").expanduser()
 WORKSPACE = OPENCLAW_HOME / "workspace"
 SSOT_ROOT = WORKSPACE / "resonantos-augmentor" / "ssot"
 AGENTS_DIR = OPENCLAW_HOME / "agents"
@@ -151,47 +150,6 @@ def _read_gw_token():
         return ""
 
 GW_TOKEN = _read_gw_token()
-
-
-def _load_ssot_access_store():
-    try:
-        if SSOT_ACCESS_FILE.exists():
-            data = json.loads(SSOT_ACCESS_FILE.read_text())
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
-    return {}
-
-
-def _read_ssot_access(agent_id, levels=("L0", "L1", "L2")):
-    normalized = {level: False for level in levels}
-    if not agent_id:
-        return normalized
-
-    store = _load_ssot_access_store()
-    access = store.get(agent_id, {})
-    if not isinstance(access, dict):
-        return normalized
-
-    for level in levels:
-        normalized[level] = bool(access.get(level, normalized[level]))
-    return normalized
-
-
-def _write_ssot_access(agent_id, access, levels=("L0", "L1", "L2")):
-    if not agent_id:
-        raise ValueError("agent_id is required")
-
-    normalized = {level: False for level in levels}
-    if isinstance(access, dict):
-        for level in levels:
-            normalized[level] = bool(access.get(level, normalized[level]))
-
-    store = _load_ssot_access_store()
-    store[agent_id] = normalized
-    SSOT_ACCESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    SSOT_ACCESS_FILE.write_text(json.dumps(store, indent=2))
 
 # Solana wallet helper functions
 def _get_wallet_pubkey():
@@ -3705,6 +3663,33 @@ def api_knowledge_ssot():
         ordered.extend([aid for aid in discovered if aid not in preferred])
         return _ordered_unique(ordered)
 
+    def _read_ssot_access(cfg, agent_id):
+        agents_cfg = cfg.get("agents", {}) if isinstance(cfg, dict) else {}
+        out = {level: False for level in levels}
+
+        defaults_access = agents_cfg.get("defaults", {}).get("ssotAccess", {})
+        if isinstance(defaults_access, dict):
+            for level in levels:
+                out[level] = bool(defaults_access.get(level, out[level]))
+
+        legacy_cfg = agents_cfg.get(agent_id, {})
+        if isinstance(legacy_cfg, dict):
+            legacy_access = legacy_cfg.get("ssotAccess", {})
+            if isinstance(legacy_access, dict):
+                for level in levels:
+                    out[level] = bool(legacy_access.get(level, out[level]))
+
+        for item in agents_cfg.get("list", []):
+            if not isinstance(item, dict) or item.get("id") != agent_id:
+                continue
+            list_access = item.get("ssotAccess", {})
+            if isinstance(list_access, dict):
+                for level in levels:
+                    out[level] = bool(list_access.get(level, out[level]))
+            break
+
+        return out
+
     try:
         config = json.loads(OPENCLAW_CONFIG.read_text()) if OPENCLAW_CONFIG.exists() else {}
     except Exception:
@@ -3734,7 +3719,7 @@ def api_knowledge_ssot():
             "markdownCount": markdown_count,
         }
 
-    ssot_access = {agent_id: _read_ssot_access(agent_id, levels) for agent_id in agent_ids}
+    ssot_access = {agent_id: _read_ssot_access(config, agent_id) for agent_id in agent_ids}
 
     return jsonify(
         {
@@ -3761,16 +3746,37 @@ def api_knowledge_ssot_access():
         return jsonify({"error": "level must be one of L0, L1, L2"}), 400
 
     try:
-        normalized_access = _read_ssot_access(agent_id)
+        cfg = json.loads(OPENCLAW_CONFIG.read_text()) if OPENCLAW_CONFIG.exists() else {}
     except Exception as e:
-        return jsonify({"error": f"Failed to read SSoT access: {e}"}), 500
+        return jsonify({"error": f"Failed to read config: {e}"}), 500
 
+    if "agents" not in cfg or not isinstance(cfg["agents"], dict):
+        cfg["agents"] = {}
+    agents_cfg = cfg["agents"]
+    if "list" not in agents_cfg or not isinstance(agents_cfg["list"], list):
+        agents_cfg["list"] = []
+
+    entry = None
+    for item in agents_cfg["list"]:
+        if isinstance(item, dict) and item.get("id") == agent_id:
+            entry = item
+            break
+    if entry is None:
+        entry = {"id": agent_id}
+        agents_cfg["list"].append(entry)
+
+    current_access = entry.get("ssotAccess", {})
+    normalized_access = {"L0": False, "L1": False, "L2": False}
+    if isinstance(current_access, dict):
+        for k in normalized_access.keys():
+            normalized_access[k] = bool(current_access.get(k, normalized_access[k]))
     normalized_access[level] = enabled
+    entry["ssotAccess"] = normalized_access
 
     try:
-        _write_ssot_access(agent_id, normalized_access)
+        OPENCLAW_CONFIG.write_text(json.dumps(cfg, indent=2))
     except Exception as e:
-        return jsonify({"error": f"Failed to write SSoT access: {e}"}), 500
+        return jsonify({"error": f"Failed to write config: {e}"}), 500
 
     level_path = str((Path.home() / "resonantos-augmentor" / "ssot" / level).expanduser())
     return jsonify(

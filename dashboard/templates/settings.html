@@ -109,126 +109,6 @@
 .knowledge-ssot-level-heading.missing { opacity: 0.55; }
 .knowledge-ssot-cell { display: flex; justify-content: center; }
 .knowledge-ssot-meta { margin-top: 4px; font-size: 12px; color: var(--text-muted); word-break: break-all; }
-.knowledge-unified-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.ku-common-card {
-    background: var(--card-bg, #1a1a2e);
-    border: 1px solid rgba(74, 222, 128, 0.45);
-    box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.16);
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 8px;
-}
-.ku-common-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 8px;
-    margin-top: 10px;
-}
-.ku-common-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 8px;
-    padding: 8px 10px;
-}
-.ku-header,
-.ku-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 1.3fr) repeat(4, 84px) minmax(180px, 1fr);
-    align-items: center;
-    gap: 10px;
-}
-.ku-header {
-    padding: 0 6px;
-    color: var(--text-muted);
-    font-size: 12px;
-    letter-spacing: 0.3px;
-}
-.ku-row {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 8px;
-    padding: 8px 10px;
-}
-.ku-agent { color: var(--text-secondary); font-size: 13px; }
-.ku-toggle { display: flex; justify-content: center; }
-.ku-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    flex-wrap: wrap;
-}
-.ku-files-count { color: var(--text-muted); }
-.ku-show-btn,
-.ku-upload-btn {
-    white-space: nowrap;
-    padding: 5px 8px;
-    font-size: 12px;
-}
-.ku-upload-input { display: none; }
-.ku-files-list {
-    grid-column: 1 / -1;
-    display: none;
-    margin-top: 6px;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    padding-top: 8px;
-}
-.ku-files-list.expanded { display: block; }
-.ku-file-row {
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    border-radius: 8px;
-}
-.ku-file-checkbox {
-    width: 14px;
-    height: 14px;
-    cursor: pointer;
-}
-.ku-file-btn {
-    width: 100%;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    background: transparent;
-    border: 0;
-    border-radius: 8px;
-    color: var(--text-secondary);
-    padding: 7px 8px;
-    cursor: pointer;
-}
-.ku-file-btn:hover {
-    background: rgba(255,255,255,0.04);
-    color: var(--text-primary);
-}
-.ku-file-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.ku-file-size {
-    color: var(--text-muted);
-    font-size: 12px;
-    flex-shrink: 0;
-}
-.ku-delete-btn {
-    display: none;
-    white-space: nowrap;
-    padding: 5px 8px;
-    font-size: 12px;
-}
-.ku-delete-btn.visible {
-    display: inline-flex;
-}
 .knowledge-preview-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.62); z-index: 1200; display: none; align-items: center; justify-content: center; padding: 16px; }
 .knowledge-preview-overlay.active { display: flex; }
 .knowledge-preview-modal { width: min(900px, 100%); max-height: min(80vh, 760px); display: flex; flex-direction: column; background: var(--card-bg, #1a1a2e); border: 1px solid var(--border-color, #2a2a4a); border-radius: 12px; overflow: hidden; }
@@ -237,16 +117,12 @@
 .knowledge-preview-close { border: 0; background: transparent; color: var(--text-muted); font-size: 21px; cursor: pointer; line-height: 1; padding: 0; }
 .knowledge-preview-close:hover { color: var(--text-primary); }
 .knowledge-preview-content { flex: 1; overflow: auto; padding: 14px 16px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
-	@media (max-width: 720px) {
-	    .knowledge-folder-header { flex-direction: column; }
-	    .knowledge-folder-header-right { width: 100%; justify-content: flex-start; }
-	    .knowledge-ssot-row { grid-template-columns: minmax(96px, 1fr) repeat(3, 66px); gap: 8px; }
-	    .knowledge-ssot-level-heading { font-size: 11px; }
-        .ku-header,
-        .ku-row { grid-template-columns: minmax(96px, 1fr) repeat(4, 62px) minmax(120px, 1fr); gap: 8px; }
-        .ku-header { font-size: 11px; }
-        .ku-actions { font-size: 12px; justify-content: flex-start; }
-	}
+@media (max-width: 720px) {
+    .knowledge-folder-header { flex-direction: column; }
+    .knowledge-folder-header-right { width: 100%; justify-content: flex-start; }
+    .knowledge-ssot-row { grid-template-columns: minmax(96px, 1fr) repeat(3, 66px); gap: 8px; }
+    .knowledge-ssot-level-heading { font-size: 11px; }
+}
 </style>
 <div class="settings-layout">
     <!-- Settings Navigation -->
@@ -715,16 +591,24 @@
             <div id="cronInfrequent" class="cron-infrequent" style="margin-top:20px;"></div>
         </section>
 
-	        <section class="settings-section" id="knowledgeSection">
-	            <h2 class="section-title">Knowledge Base</h2>
-	            <p class="section-description">Manage user-uploaded knowledge folders that extend the RAG index. Files in these folders are embedded and searchable via memory_search.</p>
+        <section class="settings-section" id="knowledgeSection">
+            <h2 class="section-title">Knowledge Base</h2>
+            <p class="section-description">Manage user-uploaded knowledge folders that extend the RAG index. Files in these folders are embedded and searchable via memory_search.</p>
 
-	            <div id="knowledgeFolders" class="knowledge-folders">
-	                <div class="muted">Loading knowledge base...</div>
-	            </div>
-	        </section>
-	    </div>
-	</div>
+            <div id="knowledgeFolders" class="knowledge-folders">
+                <div class="muted">Loading knowledge base...</div>
+            </div>
+
+            <div class="knowledge-ssot-card">
+                <div class="knowledge-folder-name">SSoT Documents</div>
+                <div class="knowledge-folder-meta">Toggle each agent's access to SSoT levels L0, L1, and L2.</div>
+                <div id="knowledgeSsotAccess" class="knowledge-ssot-access">
+                    <div class="muted">Loading SSoT access...</div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
 
 <div id="knowledgePreviewOverlay" class="knowledge-preview-overlay">
     <div class="knowledge-preview-modal">
@@ -1126,111 +1010,6 @@ function renderKnowledgeSsotAccess(data) {
     return html;
 }
 
-// Unified knowledge grid: one row per agent with all controls
-function renderUnifiedKnowledgeGrid(baseData, ssotData) {
-    const levelOrder = ['L0', 'L1', 'L2'];
-    const agentOrder = (baseData && Array.isArray(baseData.agentOrder) && baseData.agentOrder.length > 0)
-        ? baseData.agentOrder
-        : ['main', 'voice', 'coder'];
-    const ssotAccess = (ssotData && ssotData.ssotAccess && typeof ssotData.ssotAccess === 'object')
-        ? ssotData.ssotAccess
-        : {};
-    const commonAccess = (baseData && baseData.commonAccess && typeof baseData.commonAccess === 'object')
-        ? baseData.commonAccess
-        : {};
-    const folders = (baseData && baseData.folders && typeof baseData.folders === 'object')
-        ? baseData.folders
-        : {};
-
-    let html = '';
-    html += '<div class="ku-common-card">';
-    html += '<div class="knowledge-folder-name">Common KB</div>';
-    html += '<div class="knowledge-folder-meta">Shared folder access for each agent</div>';
-    if (agentOrder.length > 0) {
-        html += '<div class="ku-common-grid">';
-        for (const agentId of agentOrder) {
-            const ca = !!commonAccess[agentId];
-            html += '<div class="ku-common-item">';
-            html += '<span class="knowledge-toggle-item-label">' + escapeHtml(formatAgentName(agentId)) + '</span>';
-            html += '<label class="toggle-switch">';
-            html += '<input type="checkbox" class="ku-common-toggle" data-agent-id="' + escapeAttr(agentId) + '"' + (ca ? ' checked' : '') + '>';
-            html += '<span class="slider"></span>';
-            html += '</label>';
-            html += '</div>';
-        }
-        html += '</div>';
-    } else {
-        html += '<div class="knowledge-empty">No agents found in openclaw.json</div>';
-    }
-    html += '</div>';
-
-    html += '<div class="knowledge-unified-grid">';
-    html += '<div class="ku-header">';
-    html += '<div class="ku-agent">Agent</div>';
-    html += '<div class="ku-toggle">L0</div>';
-    html += '<div class="ku-toggle">L1</div>';
-    html += '<div class="ku-toggle">L2</div>';
-    html += '<div class="ku-toggle">Memory Log</div>';
-    html += '<div class="ku-actions">Files</div>';
-    html += '</div>';
-
-    for (const agentId of agentOrder) {
-        const sa = (ssotAccess[agentId] && typeof ssotAccess[agentId] === 'object') ? ssotAccess[agentId] : {};
-        const ca = !!commonAccess[agentId];
-        const folderEntry = getKnowledgeFolderEntry(folders, agentId);
-        const folderName = folderEntry && folderEntry.name ? folderEntry.name : agentId;
-        const info = folderEntry && folderEntry.info ? folderEntry.info : {};
-        const files = Array.isArray(info.files) ? info.files : [];
-        const fileCount = (typeof info.totalFiles === 'number') ? info.totalFiles : files.length;
-        const filesPanelId = 'ku_files_' + String(agentId).replace(/[^a-zA-Z0-9_-]/g, '_');
-
-        html += '<div class="ku-row">';
-        html += '<div class="ku-agent">' + escapeHtml(formatAgentName(agentId)) + '</div>';
-        for (const level of levelOrder) {
-            html += '<div class="ku-toggle">';
-            html += '<label class="toggle-switch">';
-            html += '<input type="checkbox" class="ku-ssot-toggle" data-agent-id="' + escapeAttr(agentId) + '" data-level="' + escapeAttr(level) + '"' + (sa[level] ? ' checked' : '') + '>';
-            html += '<span class="slider"></span>';
-            html += '</label>';
-            html += '</div>';
-        }
-        html += '<div class="ku-toggle">';
-        html += '<label class="toggle-switch">';
-        html += '<input type="checkbox" class="ku-memory-toggle" data-agent-id="' + escapeAttr(agentId) + '"' + (ca ? ' checked' : '') + '>';
-        html += '<span class="slider"></span>';
-        html += '</label>';
-        html += '</div>';
-        html += '<div class="ku-actions">';
-        html += '<span class="ku-files-count">' + fileCount + ' file' + (fileCount !== 1 ? 's' : '') + '</span>';
-        html += '<button type="button" class="btn-secondary ku-show-btn" data-files-target="' + escapeAttr(filesPanelId) + '">Show files</button>';
-        html += '<button type="button" class="btn-danger ku-delete-btn" data-folder="' + escapeAttr(folderName) + '">Delete selected</button>';
-        html += '<input type="file" class="ku-upload-input" data-folder="' + escapeAttr(folderName) + '">';
-        html += '<button type="button" class="btn-secondary ku-upload-btn" data-folder="' + escapeAttr(folderName) + '">Upload</button>';
-        html += '</div>';
-        html += '<div id="' + escapeAttr(filesPanelId) + '" class="ku-files-list">';
-        if (files.length > 0) {
-            for (const file of files) {
-                const filePath = file.path || (folderName + '/' + (file.name || ''));
-                const fileLabel = file.name || file.path || 'Unnamed file';
-                html += '<div class="ku-file-row">';
-                html += '<input type="checkbox" class="ku-file-checkbox" data-file-path="' + escapeAttr(filePath) + '" data-folder="' + escapeAttr(folderName) + '">';
-                html += '<button type="button" class="ku-file-btn" data-file-path="' + escapeAttr(filePath) + '">';
-                html += '<span class="ku-file-name">' + escapeHtml(fileLabel) + '</span>';
-                html += '<span class="ku-file-size">' + formatBytes(file.size || 0) + '</span>';
-                html += '</button>';
-                html += '</div>';
-            }
-        } else {
-            html += '<div class="knowledge-empty">No files in this folder</div>';
-        }
-        html += '</div>';
-        html += '</div>';
-    }
-
-    html += '</div>';
-    return html;
-}
-
 
 function initSsotToggles() {
     document.querySelectorAll('.knowledge-ssot-toggle').forEach(toggle => {
@@ -1248,143 +1027,6 @@ function initSsotToggles() {
             } catch(e) {
                 this.checked = !enabled; // revert
                 alert('Failed to save: ' + e.message);
-            }
-        });
-    });
-}
-
-function initUnifiedToggles(container) {
-    if (!container) return;
-    container.querySelectorAll('.ku-ssot-toggle').forEach(function(toggle) {
-        toggle.addEventListener('change', async function() {
-            const agentId = toggle.dataset.agentId || '';
-            const level = toggle.dataset.level || '';
-            const enabled = toggle.checked;
-            toggle.disabled = true;
-            try {
-                const response = await fetch('/api/knowledge/ssot-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agentId: agentId, level: level, enabled: enabled })
-                });
-                const data = await response.json();
-                if (!response.ok || data.error) throw new Error(data.error || 'Failed to update access');
-            } catch (error) {
-                toggle.checked = !enabled;
-                showToast('Failed to update SSoT access: ' + error.message, 'error');
-            } finally {
-                toggle.disabled = false;
-            }
-        });
-    });
-
-    container.querySelectorAll('.ku-common-toggle').forEach(function(toggle) {
-        toggle.addEventListener('change', async function() {
-            const agentId = toggle.dataset.agentId || '';
-            const enabled = toggle.checked;
-            toggle.disabled = true;
-            try {
-                const response = await fetch('/api/knowledge/common-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agentId: agentId, enabled: enabled })
-                });
-                const data = await response.json();
-                if (!response.ok || data.error) throw new Error(data.error || 'Failed to update access');
-                showToast('Common KB ' + (enabled ? 'enabled' : 'disabled') + ' for ' + formatAgentName(agentId));
-            } catch (error) {
-                toggle.checked = !enabled;
-                showToast('Failed to update common access: ' + error.message, 'error');
-            } finally {
-                toggle.disabled = false;
-            }
-        });
-    });
-
-    container.querySelectorAll('.ku-memory-toggle').forEach(function(toggle) {
-        toggle.addEventListener('change', async function() {
-            const agentId = toggle.dataset.agentId || '';
-            const enabled = toggle.checked;
-            toggle.disabled = true;
-            try {
-                const response = await fetch('/api/knowledge/common-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agentId: agentId, enabled: enabled })
-                });
-                const data = await response.json();
-                if (!response.ok || data.error) throw new Error(data.error || 'Failed to update access');
-                showToast('Memory access ' + (enabled ? 'enabled' : 'disabled') + ' for ' + formatAgentName(agentId));
-            } catch (error) {
-                toggle.checked = !enabled;
-                showToast('Failed to update memory access: ' + error.message, 'error');
-            } finally {
-                toggle.disabled = false;
-            }
-        });
-    });
-
-    container.querySelectorAll('.ku-show-btn').forEach(function(button) {
-        button.addEventListener('click', function() {
-            const targetId = button.getAttribute('data-files-target');
-            const filesEl = targetId ? document.getElementById(targetId) : null;
-            if (!filesEl) return;
-            const expanded = filesEl.classList.toggle('expanded');
-            button.textContent = expanded ? 'Hide files' : 'Show files';
-        });
-    });
-
-    container.querySelectorAll('.ku-file-btn').forEach(function(button) {
-        button.addEventListener('click', function() {
-            const filePath = button.getAttribute('data-file-path');
-            if (!filePath) return;
-            previewKnowledgeFile(filePath);
-        });
-    });
-
-    container.querySelectorAll('.ku-upload-btn').forEach(function(button) {
-        button.addEventListener('click', function() {
-            const row = button.closest('.ku-row');
-            const input = row ? row.querySelector('.ku-upload-input') : null;
-            if (input) input.click();
-        });
-    });
-
-    container.querySelectorAll('.ku-upload-input').forEach(function(input) {
-        input.addEventListener('change', async function() {
-            const file = input.files && input.files[0];
-            if (!file) return;
-            const folder = input.getAttribute('data-folder') || '';
-            const row = input.closest('.ku-row');
-            const uploadBtn = row ? row.querySelector('.ku-upload-btn') : null;
-            const originalText = uploadBtn ? uploadBtn.textContent : '';
-
-            if (uploadBtn) {
-                uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Uploading...';
-            }
-
-            try {
-                const formData = new FormData();
-                formData.append('folder', folder);
-                formData.append('file', file);
-
-                const response = await fetch('/api/knowledge/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                if (!response.ok || data.error) throw new Error(data.error || 'Upload failed');
-                showToast('Uploaded ' + file.name + ' to ' + folder);
-                await loadKnowledgeBase();
-            } catch (error) {
-                showToast('Upload failed: ' + error.message, 'error');
-            } finally {
-                input.value = '';
-                if (uploadBtn) {
-                    uploadBtn.disabled = false;
-                    uploadBtn.textContent = originalText;
-                }
             }
         });
     });
@@ -1528,20 +1170,36 @@ async function loadKnowledgeBase() {
     container.innerHTML = '<div class="muted">Loading knowledge base...</div>';
 
     try {
-        const responses = await Promise.all([
-            fetch('/api/knowledge/base'),
-            fetch('/api/knowledge/ssot')
-        ]);
-        const baseResponse = responses[0];
-        const ssotResponse = responses[1];
-        const baseData = await baseResponse.json();
-        const ssotData = await ssotResponse.json();
+        const response = await fetch('/api/knowledge/base');
+        const data = await response.json();
+        if (!response.ok || data.error) throw new Error(data.error || 'Request failed');
 
-        if (!baseResponse.ok || baseData.error) throw new Error(baseData.error || 'Failed to load base knowledge');
-        if (!ssotResponse.ok || ssotData.error) throw new Error(ssotData.error || 'Failed to load SSoT access');
+        const folders = (data.folders && typeof data.folders === 'object') ? data.folders : {};
+        const commonAccess = (data.commonAccess && typeof data.commonAccess === 'object') ? data.commonAccess : {};
+        const agentOrder = (Array.isArray(data.agentOrder) && data.agentOrder.length > 0)
+            ? data.agentOrder
+            : ['main', 'voice', 'coder'];
 
-        container.innerHTML = renderUnifiedKnowledgeGrid(baseData, ssotData);
-        initUnifiedToggles(container);
+        let html = '';
+        html += renderKnowledgeFolderBlock(
+            'common',
+            'Common KB',
+            getKnowledgeFolderEntry(folders, 'common'),
+            { isCommon: true, agentOrder: agentOrder, commonAccess: commonAccess }
+        );
+        html += '<hr class="knowledge-divider">';
+
+        for (const agentId of agentOrder) {
+            html += renderKnowledgeFolderBlock(
+                agentId,
+                formatAgentName(agentId) + ' KB',
+                getKnowledgeFolderEntry(folders, agentId),
+                { isCommon: false }
+            );
+        }
+
+        container.innerHTML = html;
+        bindKnowledgeBaseEvents(container);
     } catch (error) {
         container.innerHTML = '<div class="error-state">Failed to load knowledge base: ' + error.message + '</div>';
     }
