@@ -1,0 +1,19 @@
+#!/bin/bash
+# lock-ssot — Lock all L0 and L1 SSoT files (immutable flag)
+# Can be run by anyone (including the agent)
+
+SSOT_ROOT="$(dirname "$0")/../ssot"
+
+count=0
+for dir in "$SSOT_ROOT"/L0 "$SSOT_ROOT"/L1; do
+  if [ -d "$dir" ]; then
+    find "$dir" -type f \( -name "*.md" -o -name "*.ai.md" \) | while read f; do
+      chflags uchg "$f" 2>/dev/null && echo "🔒 Locked: $(basename "$f")"
+    done
+    count=$((count + $(find "$dir" -type f \( -name "*.md" -o -name "*.ai.md" \) | wc -l)))
+  fi
+done
+
+echo ""
+echo "✅ $count files locked (L0 + L1). OS-level immutable flag set."
+echo "To edit, run: unlock-ssot (requires password)"

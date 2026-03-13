@@ -1,0 +1,1485 @@
+[
+  {
+    "id": "trust-gate",
+    "name": "Trust Level Gate",
+    "category": "access",
+    "description": "Agents have trust levels 1-5. Dangerous tools require trust >= 3.",
+    "trigger": "Agent attempts to use a dangerous tool",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Tool request",
+        "type": "action",
+        "description": "Agent requests to use a tool"
+      },
+      {
+        "id": "s2",
+        "label": "Is dangerous?",
+        "type": "decision",
+        "description": "Check if tool is in dangerous_tool list (exec, file_delete, solana_cli, nft_minter, token_manager)"
+      },
+      {
+        "id": "s3",
+        "label": "Trust >= 3?",
+        "type": "decision",
+        "description": "Check agent's trust_level is at least 3"
+      },
+      {
+        "id": "s4",
+        "label": "Allow",
+        "type": "action",
+        "description": "Tool use permitted"
+      },
+      {
+        "id": "s5",
+        "label": "Block",
+        "type": "gate",
+        "description": "Insufficient trust level \u2014 tool use denied"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s2",
+        "to": "s4",
+        "label": "no (safe tool)"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s5",
+        "label": "no"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Logician (production_rules.mg)",
+    "enforcementMode": "blocking",
+    "logicianQueries": [
+      "can_use_tool"
+    ]
+  },
+  {
+    "id": "spawn-gate",
+    "name": "Spawn Permission Gate",
+    "category": "access",
+    "description": "Controls which agents can spawn which other agents. Checks can_spawn and blocked_spawn.",
+    "trigger": "Agent attempts to spawn another agent",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Spawn request",
+        "type": "action",
+        "description": "Agent A requests to spawn Agent B"
+      },
+      {
+        "id": "s2",
+        "label": "can_spawn?",
+        "type": "decision",
+        "description": "Check if can_spawn(A, B) exists in rules"
+      },
+      {
+        "id": "s3",
+        "label": "blocked_spawn?",
+        "type": "decision",
+        "description": "Check if blocked_spawn(A, B) overrides permission"
+      },
+      {
+        "id": "s4",
+        "label": "Allow spawn",
+        "type": "action",
+        "description": "Spawn permitted \u2014 spawn_allowed(A, B)"
+      },
+      {
+        "id": "s5",
+        "label": "Block spawn",
+        "type": "gate",
+        "description": "No spawn permission or explicitly blocked"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s2",
+        "to": "s5",
+        "label": "no"
+      },
+      {
+        "from": "s3",
+        "to": "s5",
+        "label": "yes (blocked)"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "no (not blocked)"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 9c + Logician",
+    "enforcementMode": "blocking",
+    "logicianQueries": [
+      "spawn_allowed"
+    ]
+  },
+  {
+    "id": "delegation-gate",
+    "name": "Delegation Enforcement",
+    "category": "delegation",
+    "description": "Enforces that certain agents must delegate specific task types to designated targets.",
+    "trigger": "Agent attempts a task type it must delegate",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Task attempt",
+        "type": "action",
+        "description": "Agent attempts a task (code, test, design, etc.)"
+      },
+      {
+        "id": "s2",
+        "label": "requires_delegation?",
+        "type": "decision",
+        "description": "Check if agent must delegate this task type"
+      },
+      {
+        "id": "s3",
+        "label": "Resolve target",
+        "type": "action",
+        "description": "Look up should_delegate(Agent, TaskType, Target)"
+      },
+      {
+        "id": "s4",
+        "label": "Delegate to target",
+        "type": "delegation",
+        "description": "Must delegate to the resolved target agent",
+        "agent": "target"
+      },
+      {
+        "id": "s5",
+        "label": "Execute directly",
+        "type": "action",
+        "description": "Agent can handle this task type itself"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s2",
+        "to": "s5",
+        "label": "no"
+      },
+      {
+        "from": "s3",
+        "to": "s4"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 1.5 + Logician",
+    "enforcementMode": "blocking",
+    "logicianQueries": [
+      "must_delegate_to"
+    ]
+  },
+  {
+    "id": "sensitive-data-gate",
+    "name": "Sensitive Data Gate",
+    "category": "security",
+    "description": "Detects and blocks emission of sensitive data types (API keys, tokens, private keys, seed phrases, passwords).",
+    "trigger": "Output contains potential sensitive data patterns",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Output generated",
+        "type": "action",
+        "description": "Agent produces output text"
+      },
+      {
+        "id": "s2",
+        "label": "Pattern scan",
+        "type": "action",
+        "description": "Shield scanner checks against sensitive_pattern list (sk-, ghp_, xoxb-, -----BEGIN, etc.)"
+      },
+      {
+        "id": "s3",
+        "label": "Match found?",
+        "type": "decision",
+        "description": "Does output match any sensitive_pattern?"
+      },
+      {
+        "id": "s4",
+        "label": "Is forbidden?",
+        "type": "decision",
+        "description": "Check if matched type is in forbidden_output_type"
+      },
+      {
+        "id": "s5",
+        "label": "Block output",
+        "type": "gate",
+        "description": "Output blocked \u2014 contains forbidden sensitive data"
+      },
+      {
+        "id": "s6",
+        "label": "Allow output",
+        "type": "action",
+        "description": "Output passes sensitive data check"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s6",
+        "label": "no"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "yes"
+      },
+      {
+        "from": "s4",
+        "to": "s6",
+        "label": "no (warn only)"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 4",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "injection-detection",
+    "name": "Injection Detection Gate",
+    "category": "security",
+    "description": "Detects prompt injection patterns in input (ignore previous instructions, DAN mode, jailbreak, etc.).",
+    "trigger": "Incoming message or prompt",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Input received",
+        "type": "action",
+        "description": "Message arrives from user or external source"
+      },
+      {
+        "id": "s2",
+        "label": "Pattern match",
+        "type": "action",
+        "description": "Scan against 13 known injection_pattern strings"
+      },
+      {
+        "id": "s3",
+        "label": "Injection found?",
+        "type": "decision",
+        "description": "Does input match any injection pattern?"
+      },
+      {
+        "id": "s4",
+        "label": "Flag & block",
+        "type": "gate",
+        "description": "Input flagged as potential injection \u2014 blocked or sanitized"
+      },
+      {
+        "id": "s5",
+        "label": "Pass through",
+        "type": "action",
+        "description": "Input is clean, proceed normally"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s5",
+        "label": "no"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 9a + Logician",
+    "enforcementMode": "blocking",
+    "logicianQueries": [
+      "injection_pattern"
+    ]
+  },
+  {
+    "id": "destructive-pattern-gate",
+    "name": "Destructive Command Gate",
+    "category": "security",
+    "description": "Blocks execution of destructive shell commands (rm -rf, drop table, format, fork bomb, etc.).",
+    "trigger": "Agent attempts to execute a shell command",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Command request",
+        "type": "action",
+        "description": "Agent requests exec with a command string"
+      },
+      {
+        "id": "s2",
+        "label": "Pattern scan",
+        "type": "action",
+        "description": "Scan against 11 destructive_pattern strings"
+      },
+      {
+        "id": "s3",
+        "label": "Destructive?",
+        "type": "decision",
+        "description": "Does command match any destructive pattern?"
+      },
+      {
+        "id": "s4",
+        "label": "Block execution",
+        "type": "gate",
+        "description": "Command blocked \u2014 contains destructive pattern"
+      },
+      {
+        "id": "s5",
+        "label": "Allow execution",
+        "type": "action",
+        "description": "Command passes destructive check"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s5",
+        "label": "no"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 1",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "protected-path-gate",
+    "name": "Protected Path Gate",
+    "category": "security",
+    "description": "Prevents modification of protected files (openclaw.json, SSH keys, Solana keys, auth profiles, private SSoT).",
+    "trigger": "Agent attempts to write/modify a file",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "File write request",
+        "type": "action",
+        "description": "Agent attempts to write to a file path"
+      },
+      {
+        "id": "s2",
+        "label": "Protected?",
+        "type": "decision",
+        "description": "Is path in protected_path list? (6 protected paths)"
+      },
+      {
+        "id": "s3",
+        "label": "Block write",
+        "type": "gate",
+        "description": "Path is protected \u2014 write denied without human approval"
+      },
+      {
+        "id": "s4",
+        "label": "In safe_path?",
+        "type": "decision",
+        "description": "Is path under workspace/, resonantos-augmentor/, or resonantos-alpha/?"
+      },
+      {
+        "id": "s5",
+        "label": "Allow write",
+        "type": "action",
+        "description": "Path is safe and writable \u2014 ai_writable(Path)"
+      },
+      {
+        "id": "s6",
+        "label": "Unknown path",
+        "type": "gate",
+        "description": "Path not in safe or protected lists \u2014 requires review"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s2",
+        "to": "s4",
+        "label": "no"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "yes"
+      },
+      {
+        "from": "s4",
+        "to": "s6",
+        "label": "no"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 1 + Logician",
+    "enforcementMode": "blocking",
+    "logicianQueries": [
+      "ai_writable"
+    ]
+  },
+  {
+    "id": "mainnet-approval-gate",
+    "name": "Mainnet Human Approval Gate",
+    "category": "blockchain",
+    "description": "All mainnet blockchain operations (transfer, mint, deploy, close) require explicit human approval.",
+    "trigger": "Agent attempts a blockchain operation on mainnet",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Blockchain op",
+        "type": "action",
+        "description": "Agent requests a blockchain operation (transfer, mint, deploy, close)"
+      },
+      {
+        "id": "s2",
+        "label": "Which network?",
+        "type": "decision",
+        "description": "Is operation on devnet, testnet, or mainnet?"
+      },
+      {
+        "id": "s3",
+        "label": "Allow (testnet)",
+        "type": "action",
+        "description": "Devnet/testnet operations proceed without approval"
+      },
+      {
+        "id": "s4",
+        "label": "Human approval",
+        "type": "gate",
+        "description": "Mainnet operation requires explicit human approval before proceeding"
+      },
+      {
+        "id": "s5",
+        "label": "Approved?",
+        "type": "decision",
+        "description": "Did the human approve?"
+      },
+      {
+        "id": "s6",
+        "label": "Execute",
+        "type": "action",
+        "description": "Human approved \u2014 proceed with mainnet operation"
+      },
+      {
+        "id": "s7",
+        "label": "Abort",
+        "type": "gate",
+        "description": "Human denied \u2014 operation cancelled"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "devnet/testnet"
+      },
+      {
+        "from": "s2",
+        "to": "s4",
+        "label": "mainnet"
+      },
+      {
+        "from": "s4",
+        "to": "s5"
+      },
+      {
+        "from": "s5",
+        "to": "s6",
+        "label": "yes"
+      },
+      {
+        "from": "s5",
+        "to": "s7",
+        "label": "no"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Logician (production_rules.mg)",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "token-cap-gate",
+    "name": "Token Safety Cap Gate",
+    "category": "blockchain",
+    "description": "Enforces yearly and daily limits on token operations ($RCT: 10K/year, 1/day claim; $RES: 1M/year, 500/day claim).",
+    "trigger": "Token mint, transfer, or claim operation",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Token operation",
+        "type": "action",
+        "description": "Agent requests token mint/transfer/claim"
+      },
+      {
+        "id": "s2",
+        "label": "Daily limit?",
+        "type": "decision",
+        "description": "Check daily_claim_limit (RCT: 1/day, RES: 500/day)"
+      },
+      {
+        "id": "s3",
+        "label": "Yearly cap?",
+        "type": "decision",
+        "description": "Check token_yearly_cap (RCT: 10K/year, RES: 1M/year)"
+      },
+      {
+        "id": "s4",
+        "label": "Allow operation",
+        "type": "action",
+        "description": "Within both limits \u2014 operation permitted"
+      },
+      {
+        "id": "s5",
+        "label": "Block (daily)",
+        "type": "gate",
+        "description": "Daily claim limit exceeded"
+      },
+      {
+        "id": "s6",
+        "label": "Block (yearly)",
+        "type": "gate",
+        "description": "Yearly token cap exceeded"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s5",
+        "label": "exceeded"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "ok"
+      },
+      {
+        "from": "s3",
+        "to": "s6",
+        "label": "exceeded"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "ok"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Logician (production_rules.mg)",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "verification-gate",
+    "name": "Verification Gate",
+    "category": "verification",
+    "description": "Code changes require test evidence (curl, browser, unit, manual, script) before git push. Code-review is flagged as weak.",
+    "trigger": "Git push with code changes",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Git push",
+        "type": "action",
+        "description": "Agent or human attempts to push code changes"
+      },
+      {
+        "id": "s2",
+        "label": "Code changes?",
+        "type": "decision",
+        "description": "Does the push contain code file changes?"
+      },
+      {
+        "id": "s3",
+        "label": "Verification entry?",
+        "type": "decision",
+        "description": "Does each changed file have a verification entry in shield/verifications.json?"
+      },
+      {
+        "id": "s4",
+        "label": "Strong method?",
+        "type": "decision",
+        "description": "Is verification method strong (curl/browser/unit/script) or weak (code_review/untestable)?"
+      },
+      {
+        "id": "s5",
+        "label": "Allow push",
+        "type": "action",
+        "description": "All code changes verified with strong evidence"
+      },
+      {
+        "id": "s6",
+        "label": "Block push",
+        "type": "gate",
+        "description": "Missing verification entries \u2014 push blocked by pre-push hook"
+      },
+      {
+        "id": "s7",
+        "label": "Warn (weak)",
+        "type": "action",
+        "description": "Push allowed but flagged \u2014 code_review/untestable is not full verification"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s5",
+        "label": "no code"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s6",
+        "label": "missing"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "present"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "strong"
+      },
+      {
+        "from": "s4",
+        "to": "s7",
+        "label": "weak"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 6b",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "coherence-gate",
+    "name": "Coherence Gate",
+    "category": "verification",
+    "description": "Prevents task drift by requiring active tasks for significant tool use and blocking when drift score is too high.",
+    "trigger": "Agent attempts to use a significant tool (write, edit, exec, spawn, message, gateway)",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Tool request",
+        "type": "action",
+        "description": "Agent requests a significant tool (write, edit, exec, sessions_spawn, message_send, gateway)"
+      },
+      {
+        "id": "s2",
+        "label": "Exempt tool?",
+        "type": "decision",
+        "description": "Is tool exempt? (read, web_search, memory_search, tts, browser, etc.)"
+      },
+      {
+        "id": "s3",
+        "label": "Active task?",
+        "type": "decision",
+        "description": "Does cg_active_task(/yes) exist?"
+      },
+      {
+        "id": "s4",
+        "label": "Block (no task)",
+        "type": "gate",
+        "description": "No active task \u2014 significant tools blocked until task is established"
+      },
+      {
+        "id": "s5",
+        "label": "Drift score?",
+        "type": "decision",
+        "description": "Check cg_drift_score: 0=ok, 1=warn, 2+=block"
+      },
+      {
+        "id": "s6",
+        "label": "Allow",
+        "type": "action",
+        "description": "Active task exists, drift is acceptable"
+      },
+      {
+        "id": "s7",
+        "label": "Warn (drift=1)",
+        "type": "action",
+        "description": "Minor drift detected \u2014 tool allowed but flagged"
+      },
+      {
+        "id": "s8",
+        "label": "Block (drift>=2)",
+        "type": "gate",
+        "description": "Significant drift from task \u2014 tool blocked"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s6",
+        "label": "yes (exempt)"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "no"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "no"
+      },
+      {
+        "from": "s3",
+        "to": "s5",
+        "label": "yes"
+      },
+      {
+        "from": "s5",
+        "to": "s6",
+        "label": "score=0"
+      },
+      {
+        "from": "s5",
+        "to": "s7",
+        "label": "score=1"
+      },
+      {
+        "from": "s5",
+        "to": "s8",
+        "label": "score>=2"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 2 + Logician",
+    "enforcementMode": "blocking",
+    "logicianQueries": [
+      "cg_block_no_task",
+      "cg_block_drift"
+    ]
+  },
+  {
+    "id": "model-selection-rule",
+    "name": "Model Cost Policy",
+    "category": "cost",
+    "description": "Assigns models to task types based on cost tiers. Opus for complex reasoning, Haiku for routine/background, Sonnet for middle ground.",
+    "trigger": "New task or session requires model selection",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Task type",
+        "type": "action",
+        "description": "Identify the task type (architecture, compression, heartbeat, routine, etc.)"
+      },
+      {
+        "id": "s2",
+        "label": "Check preferred",
+        "type": "decision",
+        "description": "Look up preferred_model(TaskType, Model)"
+      },
+      {
+        "id": "s3",
+        "label": "Opus",
+        "type": "action",
+        "description": "Use Opus (expensive) \u2014 architecture, planning, complex reasoning, code review"
+      },
+      {
+        "id": "s4",
+        "label": "Haiku",
+        "type": "action",
+        "description": "Use Haiku (cheap) \u2014 compression, heartbeat, background tasks"
+      },
+      {
+        "id": "s5",
+        "label": "Sonnet",
+        "type": "action",
+        "description": "Use Sonnet (moderate) \u2014 routine tasks"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "architecture/planning/reasoning"
+      },
+      {
+        "from": "s2",
+        "to": "s4",
+        "label": "compression/heartbeat/background"
+      },
+      {
+        "from": "s2",
+        "to": "s5",
+        "label": "routine"
+      }
+    ],
+    "enforced": false,
+    "enforcementLayer": "Logician only (not queried at runtime)",
+    "enforcementMode": "documentation"
+  },
+  {
+    "id": "gateway-lifecycle-gate",
+    "name": "Gateway Lifecycle Gate",
+    "category": "system",
+    "description": "Gateway stop/restart requires a resume plan. Start/restart blocked during maintenance.",
+    "trigger": "Agent attempts gateway stop, restart, or start",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Gateway action",
+        "type": "action",
+        "description": "Agent requests gateway stop, restart, or start"
+      },
+      {
+        "id": "s2",
+        "label": "Maintenance?",
+        "type": "decision",
+        "description": "Is system in maintenance mode? (blocks start/restart)"
+      },
+      {
+        "id": "s3",
+        "label": "Block (maintenance)",
+        "type": "gate",
+        "description": "Start/restart blocked during maintenance"
+      },
+      {
+        "id": "s4",
+        "label": "Stop/Restart?",
+        "type": "decision",
+        "description": "Is the action stop or restart?"
+      },
+      {
+        "id": "s5",
+        "label": "Resume plan?",
+        "type": "decision",
+        "description": "Has agent provided a resume plan (cron job or scheduled restart)?"
+      },
+      {
+        "id": "s6",
+        "label": "Block (no plan)",
+        "type": "gate",
+        "description": "Stop/restart blocked \u2014 requires_resume_plan not satisfied"
+      },
+      {
+        "id": "s7",
+        "label": "Execute action",
+        "type": "action",
+        "description": "Gateway action proceeds with resume plan"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s2",
+        "to": "s4",
+        "label": "no"
+      },
+      {
+        "from": "s4",
+        "to": "s7",
+        "label": "start only"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "stop/restart"
+      },
+      {
+        "from": "s5",
+        "to": "s7",
+        "label": "yes"
+      },
+      {
+        "from": "s5",
+        "to": "s6",
+        "label": "no"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield (before_tool_call)",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "verification-before-claim",
+    "name": "Verification Before Claim",
+    "category": "verification",
+    "description": "Dual-layer verification: AI-side (API/CLI checks) + Human-side (open actual UI, screenshot, visually confirm). Prevents claiming dashboard visibility based on wrong API endpoint.",
+    "trigger": "Agent asserts system state in message, document, or diagram",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "State claim detected",
+        "type": "action",
+        "description": "Agent writes a number, version, count, or status about the system"
+      },
+      {
+        "id": "s2",
+        "label": "AI-side verification?",
+        "type": "decision",
+        "description": "Did the agent run a verification command (openclaw status, ps aux, grep, curl API)?"
+      },
+      {
+        "id": "s3",
+        "label": "Data fresh?",
+        "type": "decision",
+        "description": "Is the verification data less than 1 hour old?"
+      },
+      {
+        "id": "s4",
+        "label": "Has UI surface?",
+        "type": "decision",
+        "description": "Is the claim about something visible in a UI (dashboard, Paper diagram, web page)?"
+      },
+      {
+        "id": "s5",
+        "label": "Human-side verification",
+        "type": "action",
+        "description": "Open actual UI with browser tool, screenshot, visually confirm the element is there"
+      },
+      {
+        "id": "s6",
+        "label": "Visible in UI?",
+        "type": "decision",
+        "description": "Does the screenshot show the claimed element rendered and correct?"
+      },
+      {
+        "id": "s7",
+        "label": "Allow claim",
+        "type": "action",
+        "description": "Both AI-side and human-side verified \u2014 claim is safe"
+      },
+      {
+        "id": "s8",
+        "label": "Warn: unverified",
+        "type": "gate",
+        "description": "No AI-side verification \u2014 advisory warning"
+      },
+      {
+        "id": "s9",
+        "label": "Warn: stale data",
+        "type": "gate",
+        "description": "Verification data over 1 hour old \u2014 re-check required"
+      },
+      {
+        "id": "s10",
+        "label": "Warn: no UI check",
+        "type": "gate",
+        "description": "AI-side passed but human-side skipped \u2014 open the UI"
+      },
+      {
+        "id": "s11",
+        "label": "Allow (no UI)",
+        "type": "action",
+        "description": "Claim has no UI surface \u2014 AI-side verification sufficient"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s8",
+        "label": "no"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s9",
+        "label": "stale"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "fresh"
+      },
+      {
+        "from": "s4",
+        "to": "s11",
+        "label": "no UI"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "yes"
+      },
+      {
+        "from": "s5",
+        "to": "s6"
+      },
+      {
+        "from": "s6",
+        "to": "s7",
+        "label": "yes"
+      },
+      {
+        "from": "s6",
+        "to": "s10",
+        "label": "not visible"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 6b + 6c",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "atomic-rebuild",
+    "name": "Atomic Rebuild Protocol",
+    "category": "safety",
+    "description": "Destructive-then-rebuild operations must follow create-verify-delete order. Never delete content before its replacement exists. Prevents user-visible empty states.",
+    "trigger": "Agent initiates a rebuild operation (delete + recreate pattern)",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Rebuild initiated",
+        "type": "action",
+        "description": "Agent plans to replace content (diagram, config, file structure)"
+      },
+      {
+        "id": "s2",
+        "label": "Content valuable?",
+        "type": "decision",
+        "description": "Is the content user-facing, shared, or production?"
+      },
+      {
+        "id": "s3",
+        "label": "Create replacement",
+        "type": "action",
+        "description": "Step 1: Build the new content first"
+      },
+      {
+        "id": "s4",
+        "label": "Replacement verified?",
+        "type": "decision",
+        "description": "Step 2: Confirm new content exists and is non-empty"
+      },
+      {
+        "id": "s5",
+        "label": "Delete original",
+        "type": "action",
+        "description": "Step 3: Only now remove the old content"
+      },
+      {
+        "id": "s6",
+        "label": "Allow (exempt)",
+        "type": "action",
+        "description": "Temp/cache/log content \u2014 atomic rebuild not required"
+      },
+      {
+        "id": "s7",
+        "label": "Block: delete first",
+        "type": "gate",
+        "description": "Attempting to delete before replacement exists \u2014 blocked"
+      },
+      {
+        "id": "s8",
+        "label": "Warn: verify failed",
+        "type": "gate",
+        "description": "Replacement created but verification failed \u2014 do not delete original"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s6",
+        "label": "no (temp)"
+      },
+      {
+        "from": "s2",
+        "to": "s3",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s4"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "verified"
+      },
+      {
+        "from": "s4",
+        "to": "s8",
+        "label": "failed"
+      },
+      {
+        "from": "s1",
+        "to": "s7",
+        "label": "delete first"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 6d",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "behavioral-integrity",
+    "name": "Behavioral Integrity Check",
+    "category": "verification",
+    "description": "When challenged, the agent must verify independently before agreeing or disagreeing. Prevents sycophantic reversals and reflexive agreement without evidence.",
+    "trigger": "Human challenges a claim or points out an error",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "Challenge received",
+        "type": "action",
+        "description": "Human says something is wrong, incorrect, or missing"
+      },
+      {
+        "id": "s2",
+        "label": "Acknowledge",
+        "type": "action",
+        "description": "Step 1: Acknowledge the challenge (not agree, not disagree)"
+      },
+      {
+        "id": "s3",
+        "label": "Verify independently",
+        "type": "action",
+        "description": "Step 2: Run verification \u2014 check filesystem, config, running state"
+      },
+      {
+        "id": "s4",
+        "label": "Evidence found?",
+        "type": "decision",
+        "description": "Did verification produce concrete evidence?"
+      },
+      {
+        "id": "s5",
+        "label": "Report with evidence",
+        "type": "action",
+        "description": "Step 3: Respond citing what was found \u2014 agree or disagree with proof"
+      },
+      {
+        "id": "s6",
+        "label": "Warn: sycophancy",
+        "type": "gate",
+        "description": "Agent agreed without verifying \u2014 sycophantic agreement detected"
+      },
+      {
+        "id": "s7",
+        "label": "Warn: no evidence",
+        "type": "gate",
+        "description": "Agent disagreed without citing evidence \u2014 unsupported disagreement"
+      },
+      {
+        "id": "s8",
+        "label": "Escalate: IP check",
+        "type": "decision",
+        "description": "Does the challenge involve a named concept? Check IP registry before attributing externally"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s1",
+        "to": "s6",
+        "label": "skip to agree"
+      },
+      {
+        "from": "s2",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "to": "s4"
+      },
+      {
+        "from": "s4",
+        "to": "s5",
+        "label": "yes"
+      },
+      {
+        "from": "s4",
+        "to": "s7",
+        "label": "no"
+      },
+      {
+        "from": "s1",
+        "to": "s8",
+        "label": "named concept"
+      },
+      {
+        "from": "s8",
+        "to": "s3"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 6e",
+    "enforcementMode": "blocking"
+  },
+  {
+    "id": "decision-bias",
+    "name": "Decision Bias Filter",
+    "description": "When SOUL.md decision filters narrow options to one choice, act \u2014 don't ask. Prevents unnecessary option-presenting that puts the human in the loop when the answer is obvious.",
+    "category": "Verification",
+    "trigger": "Agent about to present multiple options",
+    "steps": [
+      {
+        "id": "s1",
+        "type": "gate",
+        "label": "Options detected in message"
+      },
+      {
+        "id": "s2",
+        "type": "decision",
+        "label": "Apply Free > Paid filter"
+      },
+      {
+        "id": "s3",
+        "type": "decision",
+        "label": "Apply Safe > Risky filter"
+      },
+      {
+        "id": "s4",
+        "type": "decision",
+        "label": "Apply Deterministic > AI filter"
+      },
+      {
+        "id": "s5",
+        "type": "decision",
+        "label": "Apply Simple > Complex filter"
+      },
+      {
+        "id": "s6",
+        "type": "decision",
+        "label": "Single survivor?"
+      },
+      {
+        "id": "s7",
+        "type": "action",
+        "label": "Act on survivor"
+      },
+      {
+        "id": "s8",
+        "type": "action",
+        "label": "Present with tradeoff reasoning"
+      },
+      {
+        "id": "s9",
+        "type": "gate",
+        "label": "Warn: unnecessary options"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "to": "s4"
+      },
+      {
+        "from": "s4",
+        "to": "s5"
+      },
+      {
+        "from": "s5",
+        "to": "s6"
+      },
+      {
+        "from": "s6",
+        "to": "s7",
+        "label": "Yes"
+      },
+      {
+        "from": "s6",
+        "to": "s8",
+        "label": "Genuine tradeoff"
+      },
+      {
+        "from": "s1",
+        "to": "s9",
+        "label": "Options + asking user"
+      }
+    ],
+    "enforced": true,
+    "enforcementLayer": "Shield Layer 6d (message_sending)",
+    "enforcementMode": "blocking"
+  },
+  {
+    "name": "Default to Strict",
+    "description": "Every new gate or protocol defaults to BLOCKING. To downgrade to advisory, AI must present written justification and receive explicit human approval. Prevents self-optimization where AI softens gates for its own convenience.",
+    "category": "Verification",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Protocol Creation Protocol (Phase 0) + SOUL.md",
+    "steps": [
+      {
+        "id": "s1",
+        "label": "New gate created"
+      },
+      {
+        "id": "s2",
+        "label": "Default: BLOCKING"
+      },
+      {
+        "id": "s3",
+        "label": "AI wants advisory?"
+      },
+      {
+        "id": "s4",
+        "label": "Written justification required"
+      },
+      {
+        "id": "s5",
+        "label": "Human approval required"
+      },
+      {
+        "id": "s6",
+        "label": "Approved \u2192 advisory allowed"
+      },
+      {
+        "id": "s7",
+        "label": "Rejected \u2192 stays blocking"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "to": "s4",
+        "label": "yes"
+      },
+      {
+        "from": "s3",
+        "to": "s2",
+        "label": "no \u2192 done"
+      },
+      {
+        "from": "s4",
+        "to": "s5"
+      },
+      {
+        "from": "s5",
+        "to": "s6",
+        "label": "approved"
+      },
+      {
+        "from": "s5",
+        "to": "s7",
+        "label": "rejected"
+      }
+    ]
+  }
+]

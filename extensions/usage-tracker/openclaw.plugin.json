@@ -1,0 +1,7 @@
+{
+  "id": "usage-tracker",
+  "name": "Usage Tracker",
+  "description": "Persistent usage tracking across all agents",
+  "version": "1.0.0",
+  "configSchema": {}
+}

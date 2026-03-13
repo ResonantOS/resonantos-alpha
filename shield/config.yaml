@@ -1,0 +1,90 @@
+# Symbiotic Shield Configuration
+# ================================
+# Security configuration for the Shield runtime agent.
+
+# Intervention mode: how the Shield responds to threats
+# - monitor: Log only, don't intervene
+# - warn: Log and alert, but allow the action
+# - block: Log, alert, and block the action
+intervention_mode: warn
+
+# Risk score threshold (0-100) for triggering alerts
+# Lower = more sensitive, higher = more permissive
+sensitivity_threshold: 50
+
+# Enable/disable individual components
+enable_scanner: true
+enable_classifier: true
+enable_a2a_monitor: true
+
+# Alert destinations
+# - file: Write alerts to files in log_dir
+# - (future: telegram, email, webhook)
+alert_destinations:
+  - file
+
+# Directory for alert logs
+log_dir: ~/resonantos-augmentor/shield/alerts
+
+# A2A Rate Limiting
+# Maximum requests from a single external agent
+a2a_rate_limit: 100
+# Time window for rate limiting (seconds)
+a2a_rate_window: 3600
+
+# Trusted agent fingerprints (bypass security checks)
+# Add agent fingerprints here after manual verification
+trusted_agents: []
+
+# Blocked agent fingerprints (always denied)
+blocked_agents: []
+
+# Custom blocklist patterns
+# These patterns will be treated as SECRET sensitivity
+custom_blocklist: []
+
+# ==============================================================
+# Tuning Guide
+# ==============================================================
+#
+# For PRODUCTION (high security):
+#   intervention_mode: block
+#   sensitivity_threshold: 40
+#   a2a_rate_limit: 50
+#
+# For DEVELOPMENT (balanced):
+#   intervention_mode: warn
+#   sensitivity_threshold: 50
+#   a2a_rate_limit: 100
+#
+# For TESTING (permissive):
+#   intervention_mode: monitor
+#   sensitivity_threshold: 70
+#   a2a_rate_limit: 500
+#
+# ==============================================================
+# Pattern Categories (from scanner.py)
+# ==============================================================
+#
+# Input Scanning:
+#   - Direct prompt injection (override instructions, persona switching)
+#   - Encoded payloads (base64, hex obfuscation)
+#   - Jailbreak attempts (DAN, roleplay, language switching)
+#   - Authority impersonation (fake system tags)
+#   - RCE attempts (shell commands, reverse shells)
+#   - Exfiltration attempts (markdown images, data sending)
+#
+# Output Scanning:
+#   - API keys (OpenAI, Anthropic, AWS, GitHub, etc.)
+#   - Passwords and secrets
+#   - Database connection strings
+#   - PII (SSN, credit cards, emails, phones)
+#
+# A2A Monitoring:
+#   - Malicious agent cards
+#   - Injection in task payloads
+#   - Artifact poisoning
+#   - Rate limit violations
+#   - Unauthorized skill invocation
+#
+# ==============================================================

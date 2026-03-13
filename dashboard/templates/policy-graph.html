@@ -1,0 +1,2521 @@
+{% extends "base.html" %}
+
+{% block title %}Policy Graph - ResonantOS Dashboard{% endblock %}
+{% block page_title %}Logician Policy Graph{% endblock %}
+
+{% block extra_css %}
+<style>
+    .policy-page {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .policy-tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .policy-tab-btn {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        padding: 9px 14px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        font-weight: 600;
+        transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+
+    .policy-tab-btn:hover {
+        color: var(--text-primary);
+        border-color: var(--accent);
+    }
+
+    .policy-tab-btn.active {
+        color: #0b0f0d;
+        border-color: var(--accent);
+        background: var(--accent);
+    }
+
+    .tab-panel {
+        display: none;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .tab-panel.active {
+        display: flex;
+    }
+
+    .policy-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .policy-search-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .policy-search {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 9px 12px;
+        border-radius: var(--radius);
+        min-width: 240px;
+    }
+
+    .policy-btn {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 9px 14px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+
+    .policy-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+    .policy-btn.primary {
+        background: var(--accent);
+        color: #0b0f0d;
+        border-color: var(--accent);
+        font-weight: 600;
+    }
+
+    .policy-btn.primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        color: #0b0f0d;
+    }
+
+    #searchStatus {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .policy-stats {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .status-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--text-muted);
+    }
+
+    .status-dot.ok {
+        background: var(--success);
+        box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
+    }
+
+    .status-dot.down {
+        background: var(--error);
+        box-shadow: 0 0 10px rgba(248, 113, 113, 0.45);
+    }
+
+    .flow-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .flow-search {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 9px 12px;
+        border-radius: var(--radius);
+        width: min(420px, 100%);
+    }
+
+    .category-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .category-chip {
+        border: 1px solid var(--border);
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
+        transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+
+    .category-chip:hover {
+        border-color: var(--accent);
+        color: var(--text-primary);
+    }
+
+    .category-chip.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #0b0f0d;
+    }
+
+    .protocol-selector {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 8px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+        gap: 10px;
+    }
+    .protocol-selector::-webkit-scrollbar {
+        height: 6px;
+    }
+    .protocol-selector::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 3px;
+    }
+
+    .protocol-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        cursor: pointer;
+        min-width: 220px;
+        max-width: 280px;
+        flex-shrink: 0;
+        text-align: left;
+        transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .protocol-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+    }
+
+    .protocol-card.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .protocol-name {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+    }
+
+    .protocol-trigger {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+    }
+
+    .protocol-description {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+        line-height: 1.4;
+    }
+
+    .protocol-meta {
+        font-size: 11px;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .category-badge {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
+        color: var(--text-secondary);
+        background: var(--bg-tertiary);
+    }
+
+    .graph-shell {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .graph-card {
+        background: radial-gradient(ellipse at 50% 50%, #1e1e2a 0%, #111118 70%, #0a0a0f 100%);
+        
+        
+        flex: 1;
+        min-width: 0;
+        position: relative;
+        min-height: 600px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+
+    .graph-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1.2px, transparent 1px);
+        background-size: 24px 24px;
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    #policyGraph,
+    #protocolGraph,
+    #rulesGraph {
+        width: 100%;
+        height: 100%;
+        min-height: 600px;
+        background: transparent !important;
+    }
+
+    #graphLoading,
+    #protocolGraphLoading,
+    #rulesGraphLoading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(26, 26, 26, 0.75);
+        color: var(--text-muted);
+        font-size: 13px;
+        z-index: 20;
+    }
+
+    .protocol-tooltip {
+        position: absolute;
+        z-index: 25;
+        max-width: 280px;
+        background: rgba(8, 12, 18, 0.96);
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 8px 10px;
+        color: #d1d5db;
+        font-size: 12px;
+        pointer-events: none;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .empty-state-card {
+        grid-column: 1 / -1;
+        padding: 12px;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        color: var(--text-muted);
+        text-align: center;
+        background: var(--bg-secondary);
+    }
+
+    .protocol-tooltip-title {
+        font-size: 12px;
+        color: #f3f4f6;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .details-panel {
+        width: 300px;
+        min-width: 300px;
+        max-width: 300px;
+        flex-shrink: 0;
+        position: relative;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        transition: width 0.2s ease;
+    }
+
+    .details-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        z-index: 2;
+        font-size: 14px;
+    }
+
+    .details-toggle:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+    }
+
+    .details-content {
+        padding: 16px;
+        overflow-y: auto;
+        height: 100%;
+        min-height: 600px;
+        background: transparent !important;
+        padding-top: 48px;
+    }
+
+    .details-panel.collapsed {
+        width: 44px;
+        min-width: 44px;
+    }
+
+    .details-panel.collapsed .details-content {
+        display: none;
+    }
+
+    .panel-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .panel-subtitle {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+    }
+
+    .detail-block {
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px;
+        background: var(--bg-primary);
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    .detail-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .detail-key {
+        color: var(--text-muted);
+        min-width: 84px;
+    }
+
+    .detail-value {
+        color: var(--text-primary);
+        text-align: right;
+        word-break: break-word;
+    }
+
+    .detail-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .detail-list li {
+        font-size: 12px;
+        color: var(--text-secondary);
+        padding: 5px 0;
+        border-bottom: 1px solid var(--border);
+        word-break: break-word;
+    }
+
+    .detail-list li:last-child {
+        border-bottom: none;
+    }
+
+    .detail-banner {
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        margin-bottom: 12px;
+        border: 1px solid transparent;
+    }
+
+    .detail-banner.mandatory {
+        border-color: #8b5e3c;
+        background: rgba(127, 29, 29, 0.35);
+        color: #fecaca;
+        font-weight: 700;
+    }
+
+    .legend {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 12px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .legend-swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .legend-tool {
+        width: 14px;
+        height: 14px;
+        background: #8b5e3c;
+        clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    @media (max-width: 1200px) {
+        .policy-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .graph-shell {
+            flex-direction: column;
+        }
+
+        .details-panel {
+            width: 100%;
+            min-width: unset;
+            max-width: unset;
+            min-height: 320px;
+        }
+
+        .details-content {
+            min-height: 320px;
+        }
+
+        .details-panel.collapsed {
+            width: 100%;
+            min-width: 100%;
+            min-height: 48px;
+        }
+
+        .details-panel.collapsed .details-content {
+            display: none;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .policy-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .policy-search {
+            min-width: 180px;
+            width: 100%;
+        }
+
+        .protocol-selector {
+            gap: 8px;
+        }
+    }
+
+    #protocolGraph canvas,
+    #rulesGraph canvas,
+    #policyGraph canvas {
+        background: transparent !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="policy-page">
+    <div class="policy-tabs" role="tablist" aria-label="Policy graph tabs">
+        <button class="policy-tab-btn active" type="button" data-tab="architecture" aria-selected="true">Agent Architecture</button>
+        <button class="policy-tab-btn" type="button" data-tab="protocol" aria-selected="false">Protocol Flows</button>
+        <button class="policy-tab-btn" type="button" data-tab="rules" aria-selected="false">🛡 Policy Rules</button>
+    </div>
+
+    <section id="architectureTabPanel" class="tab-panel active" aria-labelledby="Agent Architecture">
+        <div class="policy-toolbar">
+            <div class="policy-search-wrap">
+                <input id="agentSearch" class="policy-search" type="text" placeholder="Search agent by name..." aria-label="Search agent by name">
+                <button id="searchBtn" class="policy-btn" type="button">Search</button>
+                <span id="searchStatus"></span>
+            </div>
+            <button id="refreshBtn" class="policy-btn primary" type="button">Refresh</button>
+        </div>
+
+        <div class="policy-stats">
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Total Agents</div>
+                    <div class="stat-value" id="statAgents">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Total Rules</div>
+                    <div class="stat-value" id="statRules">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Dangerous Tools</div>
+                    <div class="stat-value" id="statDangerous">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="status-wrap">
+                    <span id="logicianStatusDot" class="status-dot"></span>
+                    <span id="logicianStatusText">Checking...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="graph-shell">
+            <section class="graph-card">
+                <div id="graphLoading">Loading policy graph...</div>
+                <div id="policyGraph"></div>
+            </section>
+
+            <aside id="detailsPanel" class="details-panel">
+                <button id="detailsToggle" class="details-toggle" type="button" aria-label="Toggle details panel">&rsaquo;</button>
+                <div id="detailsContent" class="details-content"></div>
+            </aside>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="legend-swatch" style="background:#2d5a3d"></span>Agent Trust 5 (highest)</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#4a7c59"></span>Agent Trust 4</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#8b7d3c"></span>Agent Trust 3</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#b08d57"></span>Agent Trust 2</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#a0522d"></span>Agent Trust 1 (lowest)</div>
+            <div class="legend-item"><span class="legend-tool"></span>Dangerous Tool</div>
+        </div>
+    </section>
+
+    <section id="protocolTabPanel" class="tab-panel" aria-labelledby="Protocol Flows">
+        <div class="flow-controls">
+            <input id="protocolSearch" class="flow-search" type="text" placeholder="Search protocol flows..." aria-label="Search protocol flows">
+            <div id="protocolCategoryChips" class="category-chips"></div>
+        </div>
+        <div id="protocolSelector" class="protocol-selector"></div>
+
+        <div class="graph-shell">
+            <section class="graph-card">
+                <div id="protocolGraphLoading">Loading protocol flow...</div>
+                <div id="protocolGraph"></div>
+                <div id="protocolNodeTooltip" class="protocol-tooltip" hidden></div>
+            </section>
+
+            <aside id="protocolDetailsPanel" class="details-panel">
+                <button id="protocolDetailsToggle" class="details-toggle" type="button" aria-label="Toggle protocol details panel">&rsaquo;</button>
+                <div id="protocolDetailsContent" class="details-content"></div>
+            </aside>
+        </div>
+    </section>
+
+    <section id="rulesTabPanel" class="tab-panel" aria-labelledby="Policy Rules">
+        <div class="flow-controls">
+            <input id="rulesSearch" class="flow-search" type="text" placeholder="Search policy rules..." aria-label="Search policy rules">
+            <div id="rulesCategoryChips" class="category-chips"></div>
+        </div>
+        <div id="rulesSelector" class="protocol-selector"></div>
+
+        <div class="graph-shell">
+            <section class="graph-card">
+                <div id="rulesGraphLoading">Loading policy rule flow...</div>
+                <div id="rulesGraph"></div>
+                <div id="rulesNodeTooltip" class="protocol-tooltip" hidden></div>
+            </section>
+
+            <aside id="rulesDetailsPanel" class="details-panel">
+                <button id="rulesDetailsToggle" class="details-toggle" type="button" aria-label="Toggle rules details panel">&rsaquo;</button>
+                <div id="rulesDetailsContent" class="details-content"></div>
+            </aside>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<script>
+const TAB_STORAGE_KEY = 'policy_graph_active_tab';
+
+const TRUST_COLORS = {
+    1: '#a0522d',
+    2: '#b08d57',
+    3: '#8b7d3c',
+    4: '#4a7c59',
+    5: '#2d5a3d',
+};
+
+const TRUST_SIZES = {
+    1: 38,
+    2: 48,
+    3: 58,
+    4: 68,
+    5: 78,
+};
+
+function stepIconSvg(icon, color) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><text x="40" y="56" text-anchor="middle" font-size="48" fill="${color}" font-family="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif">${icon}</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+const PROTOCOL_TYPE_META = {
+    decision: { icon: '◆', label: 'Decision', svg: stepIconSvg('◆', '#f59e0b') },
+    action: { icon: '⚡', label: 'Action', svg: stepIconSvg('⚡', '#38bdf8') },
+    delegation: { icon: '🔀', label: 'Delegation', svg: stepIconSvg('🔀', '#34d399') },
+    gate: { icon: '🛡️', label: 'Gate', svg: stepIconSvg('🛡️', '#f87171') },
+};
+
+const graphState = {
+    agents: new Map(),
+    trust: new Map(),
+    spawnEdges: [],
+    dangerousTools: new Set(),
+    canUse: [],
+    agentTools: new Map(),
+    toolUsers: new Map(),
+    sensitiveTypes: [],
+    injectionPatterns: [],
+    protectedPaths: [],
+};
+
+const protocolState = {
+    initialized: false,
+    protocols: [],
+    filteredProtocols: [],
+    categories: [],
+    selectedProtocolId: null,
+    selectedCategory: 'all',
+    searchQuery: '',
+};
+
+const rulesState = {
+    initialized: false,
+    rules: [],
+    filteredRules: [],
+    categories: [],
+    selectedRuleId: null,
+    selectedCategory: 'all',
+    searchQuery: '',
+};
+
+let architectureCy = null;
+let protocolCy = null;
+let rulesCy = null;
+
+function esc(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function splitArgs(argsStr) {
+    const parts = [];
+    let current = '';
+    let inQuote = false;
+    let quoteChar = '';
+    let depth = 0;
+
+    for (let i = 0; i < argsStr.length; i += 1) {
+        const ch = argsStr[i];
+        const prev = i > 0 ? argsStr[i - 1] : '';
+
+        if ((ch === '"' || ch === "'") && prev !== '\\') {
+            if (!inQuote) {
+                inQuote = true;
+                quoteChar = ch;
+            } else if (quoteChar === ch) {
+                inQuote = false;
+                quoteChar = '';
+            }
+            current += ch;
+            continue;
+        }
+
+        if (!inQuote) {
+            if (ch === '(') {
+                depth += 1;
+            } else if (ch === ')' && depth > 0) {
+                depth -= 1;
+            }
+
+            if (ch === ',' && depth === 0) {
+                parts.push(current.trim());
+                current = '';
+                continue;
+            }
+        }
+
+        current += ch;
+    }
+
+    if (current.trim()) {
+        parts.push(current.trim());
+    }
+
+    return parts;
+}
+
+function cleanArg(arg) {
+    const trimmed = String(arg || '').trim();
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        return trimmed.slice(1, -1);
+    }
+    return trimmed;
+}
+
+function parseAnswer(answer) {
+    const match = String(answer || '').trim().match(/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/);
+    if (!match) {
+        return null;
+    }
+
+    return {
+        predicate: match[1],
+        args: splitArgs(match[2]).map(cleanArg),
+    };
+}
+
+function normalizeAgentKey(value) {
+    return cleanArg(value).replace(/^\/+/, '');
+}
+
+function normalizeToolKey(value) {
+    return cleanArg(value).replace(/^\/+/, '');
+}
+
+function displayAgentName(agentKey) {
+    return normalizeAgentKey(agentKey);
+}
+
+function displayToolName(toolKey) {
+    return normalizeToolKey(toolKey);
+}
+
+function addMapSet(mapObj, key, value) {
+    if (!mapObj.has(key)) {
+        mapObj.set(key, new Set());
+    }
+    mapObj.get(key).add(value);
+}
+
+async function queryLogician(query) {
+    const response = await fetch('/api/logician/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+    });
+
+    const data = await response.json();
+    if (!response.ok || data.error) {
+        throw new Error(data.error || 'Query failed');
+    }
+    return data;
+}
+
+function updateStats() {
+    const totalRules = graphState.spawnEdges.length
+        + graphState.dangerousTools.size
+        + graphState.sensitiveTypes.length
+        + graphState.injectionPatterns.length
+        + graphState.protectedPaths.length;
+
+    document.getElementById('statAgents').textContent = String(graphState.agents.size);
+    document.getElementById('statRules').textContent = String(totalRules);
+    document.getElementById('statDangerous').textContent = String(graphState.dangerousTools.size);
+}
+
+async function refreshLogicianStatus() {
+    const dot = document.getElementById('logicianStatusDot');
+    const text = document.getElementById('logicianStatusText');
+
+    try {
+        const response = await fetch('/api/logician/status');
+        const data = await response.json();
+        if (data.status === 'healthy') {
+            dot.classList.remove('down');
+            dot.classList.add('ok');
+            text.textContent = 'Logician healthy';
+        } else {
+            dot.classList.remove('ok');
+            dot.classList.add('down');
+            text.textContent = 'Logician down';
+        }
+    } catch (error) {
+        dot.classList.remove('ok');
+        dot.classList.add('down');
+        text.textContent = 'Logician unreachable';
+    }
+}
+
+function resetGraphState() {
+    graphState.agents = new Map();
+    graphState.trust = new Map();
+    graphState.spawnEdges = [];
+    graphState.dangerousTools = new Set();
+    graphState.canUse = [];
+    graphState.agentTools = new Map();
+    graphState.toolUsers = new Map();
+    graphState.sensitiveTypes = [];
+    graphState.injectionPatterns = [];
+    graphState.protectedPaths = [];
+}
+
+function collectFacts(result) {
+    if (!result || !Array.isArray(result.answers)) {
+        return [];
+    }
+    return result.answers
+        .map(parseAnswer)
+        .filter(Boolean);
+}
+
+function processResults(results) {
+    resetGraphState();
+
+    const agents = collectFacts(results.agent);
+    const trust = collectFacts(results.trust_level);
+    const spawn = collectFacts(results.can_spawn);
+    const dangerous = collectFacts(results.dangerous_tool);
+    const canUse = collectFacts(results.can_use);
+    const sensitive = collectFacts(results.sensitive_type);
+    const injection = collectFacts(results.injection_pattern);
+    const protectedPaths = collectFacts(results.protected_path);
+
+    agents.forEach((fact) => {
+        if (fact.args.length < 1) {
+            return;
+        }
+        const agentKey = normalizeAgentKey(fact.args[0]);
+        if (agentKey) {
+            graphState.agents.set(agentKey, { key: agentKey });
+        }
+    });
+
+    trust.forEach((fact) => {
+        if (fact.args.length < 2) {
+            return;
+        }
+        const agentKey = normalizeAgentKey(fact.args[0]);
+        const trustNum = Number.parseInt(fact.args[1], 10);
+        if (!agentKey || Number.isNaN(trustNum)) {
+            return;
+        }
+        graphState.trust.set(agentKey, Math.min(5, Math.max(1, trustNum)));
+        if (!graphState.agents.has(agentKey)) {
+            graphState.agents.set(agentKey, { key: agentKey });
+        }
+    });
+
+    spawn.forEach((fact) => {
+        if (fact.args.length < 2) {
+            return;
+        }
+        const fromAgent = normalizeAgentKey(fact.args[0]);
+        const toAgent = normalizeAgentKey(fact.args[1]);
+        if (!fromAgent || !toAgent) {
+            return;
+        }
+
+        graphState.spawnEdges.push({ from: fromAgent, to: toAgent });
+
+        if (!graphState.agents.has(fromAgent)) {
+            graphState.agents.set(fromAgent, { key: fromAgent });
+        }
+        if (!graphState.agents.has(toAgent)) {
+            graphState.agents.set(toAgent, { key: toAgent });
+        }
+    });
+
+    dangerous.forEach((fact) => {
+        if (fact.args.length < 1) {
+            return;
+        }
+        const toolKey = normalizeToolKey(fact.args[0]);
+        if (toolKey) {
+            graphState.dangerousTools.add(toolKey);
+        }
+    });
+
+    canUse.forEach((fact) => {
+        if (fact.args.length < 2) {
+            return;
+        }
+        const agentKey = normalizeAgentKey(fact.args[0]);
+        const toolKey = normalizeToolKey(fact.args[1]);
+        if (!agentKey || !toolKey) {
+            return;
+        }
+
+        graphState.canUse.push({ agent: agentKey, tool: toolKey });
+        addMapSet(graphState.agentTools, agentKey, toolKey);
+        addMapSet(graphState.toolUsers, toolKey, agentKey);
+
+        if (!graphState.agents.has(agentKey)) {
+            graphState.agents.set(agentKey, { key: agentKey });
+        }
+    });
+
+    sensitive.forEach((fact) => {
+        if (fact.args.length >= 1) {
+            graphState.sensitiveTypes.push(cleanArg(fact.args[0]));
+        }
+    });
+
+    injection.forEach((fact) => {
+        if (fact.args.length >= 1) {
+            graphState.injectionPatterns.push(cleanArg(fact.args[0]));
+        }
+    });
+
+    protectedPaths.forEach((fact) => {
+        if (fact.args.length >= 1) {
+            graphState.protectedPaths.push(cleanArg(fact.args[0]));
+        }
+    });
+}
+
+function buildArchitectureGraphElements() {
+    const elements = [];
+
+    graphState.agents.forEach((agentObj, agentKey) => {
+        const trust = graphState.trust.get(agentKey) || 1;
+        const label = displayAgentName(agentKey);
+        const trustSize = TRUST_SIZES[trust] || TRUST_SIZES[1];
+        const textSize = Math.max(38, label.length * 7.5 + 20);
+        const size = Math.max(trustSize, textSize);
+        elements.push({
+            data: {
+                id: `agent:${agentKey}`,
+                type: 'agent',
+                key: agentKey,
+                label,
+                trust,
+                size,
+                color: TRUST_COLORS[trust] || TRUST_COLORS[1],
+            },
+        });
+    });
+
+    graphState.dangerousTools.forEach((toolKey) => {
+        elements.push({
+            data: {
+                id: `tool:${toolKey}`,
+                type: 'tool',
+                key: toolKey,
+                label: displayToolName(toolKey),
+            },
+        });
+    });
+
+    graphState.spawnEdges.forEach((edge, index) => {
+        elements.push({
+            data: {
+                id: `spawn:${edge.from}:${edge.to}:${index}`,
+                type: 'can_spawn',
+                source: `agent:${edge.from}`,
+                target: `agent:${edge.to}`,
+                label: 'can_spawn',
+            },
+        });
+    });
+
+    graphState.canUse.forEach((edge, index) => {
+        if (!graphState.dangerousTools.has(edge.tool)) {
+            return;
+        }
+        if (!graphState.agents.has(edge.agent)) {
+            return;
+        }
+
+        elements.push({
+            data: {
+                id: `canuse:${edge.agent}:${edge.tool}:${index}`,
+                type: 'can_use',
+                source: `agent:${edge.agent}`,
+                target: `tool:${edge.tool}`,
+                label: 'can_use',
+            },
+        });
+    });
+
+    return elements;
+}
+
+function showList(items, emptyText) {
+    if (!items || !items.length) {
+        return `<div class="panel-subtitle">${esc(emptyText)}</div>`;
+    }
+    return `<ul class="detail-list">${items.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`;
+}
+
+function showGlobalDetails(message) {
+    const details = document.getElementById('detailsContent');
+
+    details.innerHTML = `
+        <div class="panel-title">Policy Details</div>
+        <div class="panel-subtitle">${esc(message || 'Select a node or edge to inspect details.')}</div>
+
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">Agents</span><span class="detail-value">${graphState.agents.size}</span></div>
+            <div class="detail-row"><span class="detail-key">Spawn rules</span><span class="detail-value">${graphState.spawnEdges.length}</span></div>
+            <div class="detail-row"><span class="detail-key">Dangerous tools</span><span class="detail-value">${graphState.dangerousTools.size}</span></div>
+        </div>
+
+        <div class="detail-block">
+            <div class="panel-subtitle">Sensitive Types (${graphState.sensitiveTypes.length})</div>
+            ${showList(graphState.sensitiveTypes, 'No sensitive types returned.')}
+        </div>
+
+        <div class="detail-block">
+            <div class="panel-subtitle">Injection Patterns (${graphState.injectionPatterns.length})</div>
+            ${showList(graphState.injectionPatterns, 'No injection patterns returned.')}
+        </div>
+
+        <div class="detail-block">
+            <div class="panel-subtitle">Protected Paths (${graphState.protectedPaths.length})</div>
+            ${showList(graphState.protectedPaths, 'No protected paths returned.')}
+        </div>
+    `;
+}
+
+
+const AGENT_DESCRIPTIONS = {
+    main: 'Primary orchestrator agent. Handles direct conversation with the human, strategic decisions, delegation, and system awareness. Trust level 5 (sovereign).',
+    strategist: 'Strategic planning and architecture decisions. Analyzes complex problems, evaluates tradeoffs, and produces high-level system designs.',
+    coder: 'Code implementation via Codex CLI. Receives precise task specifications and produces tested code changes. Never operates autonomously — always delegated.',
+    researcher: 'Deep research via Perplexity Pro. Investigates topics, analyzes markets, produces structured research reports with sources.',
+    tester: 'Quality assurance and verification. Runs test suites, validates fixes, ensures deterministic proof before marking issues resolved.',
+    designer: 'Creative and UX design. Produces visual assets, UI mockups, brand materials, and design system components.',
+    creative: 'Content creation — articles, narratives, video scripts. Applies Creative DNA voice and Augmentatism philosophy.',
+    content_voice: 'Content voice calibration. Ensures all published content matches the ResonantOS brand voice and narrative framework.',
+    website: 'Website management. Handles resonantos.com updates, deployment, and content publishing.',
+    dao: 'DAO governance agent. Manages proposal creation, voting mechanics, and token economy operations on Solana.',
+};
+
+function showNodeDetails(node) {
+    const details = document.getElementById('detailsContent');
+    const data = node.data();
+
+    if (data.type === 'agent') {
+        const spawnTargets = graphState.spawnEdges
+            .filter((edge) => edge.from === data.key)
+            .map((edge) => displayAgentName(edge.to))
+            .sort((a, b) => a.localeCompare(b));
+
+        const tools = Array.from(graphState.agentTools.get(data.key) || [])
+            .map(displayToolName)
+            .sort((a, b) => a.localeCompare(b));
+
+        const desc = AGENT_DESCRIPTIONS[data.key] || AGENT_DESCRIPTIONS[data.key.replace('/', '')] || '';
+        details.innerHTML = `
+            <div class="panel-title">Agent: ${esc(displayAgentName(data.key))}</div>
+            ${desc ? `<div class="detail-block"><div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${esc(desc)}</div></div>` : ''}
+            <div class="detail-block">
+                <div class="detail-row"><span class="detail-key">Trust</span><span class="detail-value">${esc(String(data.trust))}</span></div>
+                <div class="detail-row"><span class="detail-key">Agent ID</span><span class="detail-value">/${esc(data.key)}</span></div>
+            </div>
+
+            <div class="detail-block">
+                <div class="panel-subtitle">Can Spawn (${spawnTargets.length})</div>
+                ${showList(spawnTargets, 'No can_spawn targets.')}
+            </div>
+
+            <div class="detail-block">
+                <div class="panel-subtitle">Tools They Can Use (${tools.length})</div>
+                ${showList(tools, 'No can_use facts returned for this agent.')}
+            </div>
+        `;
+        return;
+    }
+
+    if (data.type === 'tool') {
+        const users = Array.from(graphState.toolUsers.get(data.key) || [])
+            .map(displayAgentName)
+            .sort((a, b) => a.localeCompare(b));
+
+        details.innerHTML = `
+            <div class="panel-title">Tool: ${esc(displayToolName(data.key))}</div>
+            <div class="detail-block">
+                <div class="detail-row"><span class="detail-key">Dangerous</span><span class="detail-value">Yes</span></div>
+                <div class="detail-row"><span class="detail-key">Tool ID</span><span class="detail-value">/${esc(data.key)}</span></div>
+            </div>
+
+            <div class="detail-block">
+                <div class="panel-subtitle">Agents That Can Use It (${users.length})</div>
+                ${showList(users, 'No can_use facts returned for this tool.')}
+            </div>
+        `;
+        return;
+    }
+
+    showGlobalDetails('Select a node or edge to inspect details.');
+}
+
+function showEdgeDetails(edge) {
+    const details = document.getElementById('detailsContent');
+    const data = edge.data();
+    const source = edge.source().data();
+    const target = edge.target().data();
+
+    details.innerHTML = `
+        <div class="panel-title">Edge: ${esc(data.label)}</div>
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">Type</span><span class="detail-value">${esc(data.type)}</span></div>
+            <div class="detail-row"><span class="detail-key">From</span><span class="detail-value">${esc(source.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">To</span><span class="detail-value">${esc(target.label)}</span></div>
+        </div>
+    `;
+}
+
+function initArchitectureCytoscape() {
+    const graphEl = document.getElementById('policyGraph');
+    const elements = buildArchitectureGraphElements();
+
+    if (architectureCy) {
+        architectureCy.destroy();
+        architectureCy = null;
+    }
+
+    architectureCy = cytoscape({
+        container: graphEl,
+        elements,
+        minZoom: 0.25,
+        maxZoom: 4,
+        wheelSensitivity: 0.25,
+        style: [
+            {
+                selector: 'node[type="agent"]',
+                style: {
+                    shape: 'ellipse',
+                    label: 'data(label)',
+                    width: 'data(size)',
+                    height: 'data(size)',
+                    'background-color': 'data(color)',
+                    'border-width': 2,
+                    'border-color': '#111827',
+                    color: '#e5e7eb',
+                    'font-size': 11,
+                    'font-weight': 700,
+                    'text-valign': 'center',
+                    'text-outline-color': '#111827',
+                    'text-outline-width': 1,
+                },
+            },
+            {
+                selector: 'node[type="tool"]',
+                style: {
+                    shape: 'hexagon',
+                    label: 'data(label)',
+                    width: 34,
+                    height: 34,
+                    'background-color': '#8b5e3c',
+                    'border-width': 1.5,
+                    'border-color': '#5c3d2e',
+                    color: '#d4c4a8',
+                    'font-size': 10,
+                    'font-weight': 700,
+                    'text-valign': 'bottom',
+                    'text-margin-y': 8,
+                    'text-outline-color': '#111827',
+                    'text-outline-width': 1,
+                },
+            },
+            {
+                selector: 'edge[type="can_spawn"]',
+                style: {
+                    width: 2,
+                    'line-color': '#7a7262',
+                    'target-arrow-color': '#7a7262',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    label: 'data(label)',
+                    'font-size': 9,
+                    color: '#94a3b8',
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -8,
+                },
+            },
+            {
+                selector: 'edge[type="can_use"]',
+                style: {
+                    width: 1.8,
+                    'line-style': 'dashed',
+                    'line-dash-pattern': [8, 5],
+                    'line-color': '#9b7b4a',
+                    'target-arrow-color': '#9b7b4a',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    label: 'data(label)',
+                    'font-size': 9,
+                    color: '#c9a96e',
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -8,
+                },
+            },
+            {
+                selector: ':selected',
+                style: {
+                    'border-width': 4,
+                    'border-color': '#a8c49a',
+                    'line-color': '#a8c49a',
+                    'target-arrow-color': '#a8c49a',
+                },
+            },
+            {
+                selector: 'edge.hover-edge',
+                style: {
+                    width: 3,
+                    'line-color': '#cbd5e1',
+                    'target-arrow-color': '#cbd5e1',
+                },
+            },
+            {
+                selector: 'node.hover-node',
+                style: {
+                    'border-width': 4,
+                    'border-color': '#cbd5e1',
+                },
+            },
+            {
+                selector: 'node.search-hit',
+                style: {
+                    'border-width': 5,
+                    'border-color': '#fef08a',
+                },
+            },
+        ],
+        layout: {
+            name: 'cose',
+            animate: true,
+            animationDuration: 700,
+            nodeRepulsion: 180000,
+            idealEdgeLength: 120,
+            edgeElasticity: 100,
+            gravity: 0.3,
+            numIter: 450,
+            randomize: true,
+            padding: 40,
+            nodeDimensionsIncludeLabels: true,
+        },
+    });
+
+    architectureCy.on('tap', 'node', (evt) => {
+        showNodeDetails(evt.target);
+    });
+
+    architectureCy.on('tap', 'edge', (evt) => {
+        showEdgeDetails(evt.target);
+    });
+
+    architectureCy.on('tap', (evt) => {
+        if (evt.target === architectureCy) {
+            showGlobalDetails('Select a node or edge to inspect details.');
+        }
+    });
+
+    architectureCy.on('mouseover', 'node', (evt) => {
+        const node = evt.target;
+        node.connectedEdges().addClass('hover-edge');
+        node.neighborhood('node').addClass('hover-node');
+        graphEl.style.cursor = 'pointer';
+    });
+
+    architectureCy.on('mouseout', 'node', (evt) => {
+        const node = evt.target;
+        node.connectedEdges().removeClass('hover-edge');
+        node.neighborhood('node').removeClass('hover-node');
+        graphEl.style.cursor = 'default';
+    });
+}
+
+function searchAgent() {
+    if (!architectureCy) {
+        return;
+    }
+
+    const input = document.getElementById('agentSearch');
+    const statusEl = document.getElementById('searchStatus');
+    const query = String(input.value || '').trim().toLowerCase();
+
+    architectureCy.nodes().removeClass('search-hit');
+
+    if (!query) {
+        statusEl.textContent = '';
+        return;
+    }
+
+    const match = architectureCy.nodes('[type = "agent"]').filter((node) => {
+        const label = String(node.data('label') || '').toLowerCase();
+        const key = String(node.data('key') || '').toLowerCase();
+        return label.includes(query) || key.includes(query);
+    }).first();
+
+    if (match && match.length > 0) {
+        match.addClass('search-hit');
+        architectureCy.animate({
+            center: { eles: match },
+            zoom: Math.min(2.2, architectureCy.maxZoom()),
+            duration: 300,
+        });
+        showNodeDetails(match);
+        statusEl.textContent = `Found: ${match.data('label')}`;
+        statusEl.style.color = 'var(--success)';
+    } else {
+        statusEl.textContent = 'No agent found';
+        statusEl.style.color = 'var(--error)';
+    }
+}
+
+async function refreshArchitectureGraphData() {
+    const loading = document.getElementById('graphLoading');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const searchStatus = document.getElementById('searchStatus');
+
+    loading.style.display = 'flex';
+    refreshBtn.disabled = true;
+    searchStatus.textContent = '';
+
+    try {
+        const results = {};
+        const queries = {
+            agent: 'agent(X)',
+            trust_level: 'trust_level(X, Y)',
+            can_spawn: 'can_spawn(X, Y)',
+            dangerous_tool: 'dangerous_tool(X)',
+            sensitive_type: 'sensitive_type(X)',
+            injection_pattern: 'injection_pattern(X)',
+            protected_path: 'protected_path(X)',
+            can_use: 'can_use(X, Y)',
+        };
+
+        await Promise.all(Object.entries(queries).map(async ([key, query]) => {
+            try {
+                results[key] = await queryLogician(query);
+            } catch (error) {
+                results[key] = { answers: [] };
+            }
+        }));
+
+        processResults(results);
+        updateStats();
+        initArchitectureCytoscape();
+        showGlobalDetails('Select a node or edge to inspect details.');
+        await refreshLogicianStatus();
+    } catch (error) {
+        showGlobalDetails(`Failed to load graph data: ${error.message}`);
+    } finally {
+        loading.style.display = 'none';
+        refreshBtn.disabled = false;
+    }
+}
+
+function normalizeCategory(value) {
+    const category = String(value || '').trim().toLowerCase();
+    return category || 'uncategorized';
+}
+
+function formatCategoryLabel(category) {
+    const raw = normalizeCategory(category);
+    return raw.split(/[-_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function buildCategoryList(items) {
+    const categorySet = new Set();
+    (items || []).forEach((item) => {
+        categorySet.add(normalizeCategory(item.category));
+    });
+    return ['all', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b))];
+}
+
+function getFlowSearchText(flow) {
+    const stepsText = Array.isArray(flow.steps)
+        ? flow.steps.map((step) => `${step.label || ''} ${step.description || ''}`).join(' ')
+        : '';
+    return [
+        flow.name || '',
+        flow.description || '',
+        flow.trigger || '',
+        flow.category || '',
+        stepsText,
+    ].join(' ').toLowerCase();
+}
+
+function getStepTypeMeta(type) {
+    return PROTOCOL_TYPE_META[type] || PROTOCOL_TYPE_META.action;
+}
+
+function getSelectedProtocol() {
+    return protocolState.protocols.find((item) => item.id === protocolState.selectedProtocolId) || null;
+}
+
+function getSelectedRule() {
+    return rulesState.rules.find((item) => item.id === rulesState.selectedRuleId) || null;
+}
+
+function setProtocolLoading(isLoading, message) {
+    const loadingEl = document.getElementById('protocolGraphLoading');
+    if (message) {
+        loadingEl.textContent = message;
+    }
+    loadingEl.style.display = isLoading ? 'flex' : 'none';
+}
+
+function setRulesLoading(isLoading, message) {
+    const loadingEl = document.getElementById('rulesGraphLoading');
+    if (message) {
+        loadingEl.textContent = message;
+    }
+    loadingEl.style.display = isLoading ? 'flex' : 'none';
+}
+
+function renderCategoryChips(containerId, categories, selectedCategory) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return;
+    }
+    if (!categories.length) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = categories.map((category) => {
+        const activeClass = category === selectedCategory ? 'active' : '';
+        const label = category === 'all' ? 'All' : formatCategoryLabel(category);
+        return `<button type="button" class="category-chip ${activeClass}" data-category="${esc(category)}">${esc(label)}</button>`;
+    }).join('');
+}
+
+function showProtocolOverview(message) {
+    const details = document.getElementById('protocolDetailsContent');
+    const protocol = getSelectedProtocol();
+
+    if (!protocol) {
+        details.innerHTML = `
+            <div class="panel-title">Protocol Flow</div>
+            <div class="panel-subtitle">${esc(message || 'No protocol selected.')}</div>
+        `;
+        return;
+    }
+
+    const typeCounts = { decision: 0, action: 0, delegation: 0, gate: 0 };
+    (protocol.steps || []).forEach((step) => {
+        if (typeCounts[step.type] !== undefined) {
+            typeCounts[step.type] += 1;
+        }
+    });
+
+    details.innerHTML = `
+        <div class="panel-title">${esc(protocol.name)}</div>
+        <div class="panel-subtitle">${esc(message || 'Click a step to inspect details.')}</div>
+
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">Trigger</span><span class="detail-value">${esc(protocol.trigger || 'N/A')}</span></div>
+            <div class="detail-row"><span class="detail-key">Category</span><span class="detail-value">${esc(formatCategoryLabel(protocol.category))}</span></div>
+            <div style="margin-top:8px;color:var(--text-muted);font-size:0.85em;">Description</div>
+            <div style="margin-top:4px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap;">${esc(protocol.description || 'No description')}</div>
+            <div class="detail-row" style="margin-top:8px;"><span class="detail-key">Steps</span><span class="detail-value">${(protocol.steps || []).length}</span></div>
+            <div class="detail-row"><span class="detail-key">Edges</span><span class="detail-value">${(protocol.edges || []).length}</span></div>
+        </div>
+
+        <div class="detail-block">
+            <div class="panel-subtitle">Step Types</div>
+            <div class="detail-row"><span class="detail-key">Decision</span><span class="detail-value">${typeCounts.decision}</span></div>
+            <div class="detail-row"><span class="detail-key">Action</span><span class="detail-value">${typeCounts.action}</span></div>
+            <div class="detail-row"><span class="detail-key">Delegation</span><span class="detail-value">${typeCounts.delegation}</span></div>
+            <div class="detail-row"><span class="detail-key">Gate</span><span class="detail-value">${typeCounts.gate}</span></div>
+        </div>
+    `;
+}
+
+function showRulesOverview(message) {
+    const details = document.getElementById('rulesDetailsContent');
+    const rule = getSelectedRule();
+
+    if (!rule) {
+        details.innerHTML = `
+            <div class="panel-title">Policy Rules</div>
+            <div class="panel-subtitle">${esc(message || 'No rule selected.')}</div>
+        `;
+        return;
+    }
+
+    const typeCounts = { decision: 0, action: 0, delegation: 0, gate: 0 };
+    (rule.steps || []).forEach((step) => {
+        if (typeCounts[step.type] !== undefined) {
+            typeCounts[step.type] += 1;
+        }
+    });
+
+    details.innerHTML = `
+        <div class="panel-title">${esc(rule.name)}</div>
+        <div class="panel-subtitle">${esc(message || 'Click a step to inspect details.')}</div>
+
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">Category</span><span class="detail-value">${esc(formatCategoryLabel(rule.category))}</span></div>
+            <div class="detail-row"><span class="detail-key">Trigger</span><span class="detail-value">${esc(rule.trigger || 'N/A')}</span></div>
+            <div style="margin-top:8px;color:var(--text-muted);font-size:0.85em;">Description</div>
+            <div style="margin-top:4px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap;">${esc(rule.description || 'No description')}</div>
+            <div class="detail-row" style="margin-top:8px;"><span class="detail-key">Steps</span><span class="detail-value">${(rule.steps || []).length}</span></div>
+            <div class="detail-row"><span class="detail-key">Edges</span><span class="detail-value">${(rule.edges || []).length}</span></div>
+        </div>
+
+        <div class="detail-block">
+            <div class="panel-subtitle">Step Types</div>
+            <div class="detail-row"><span class="detail-key">Decision</span><span class="detail-value">${typeCounts.decision}</span></div>
+            <div class="detail-row"><span class="detail-key">Action</span><span class="detail-value">${typeCounts.action}</span></div>
+            <div class="detail-row"><span class="detail-key">Delegation</span><span class="detail-value">${typeCounts.delegation}</span></div>
+            <div class="detail-row"><span class="detail-key">Gate</span><span class="detail-value">${typeCounts.gate}</span></div>
+        </div>
+    `;
+}
+
+function showProtocolNodeDetails(node) {
+    const details = document.getElementById('protocolDetailsContent');
+    const data = node.data();
+    const typeMeta = getStepTypeMeta(data.stepType);
+    const isDelegation = data.stepType === 'delegation';
+    const isGate = data.stepType === 'gate';
+
+    details.innerHTML = `
+        <div class="panel-title">${esc(data.label)}</div>
+        ${isGate ? '<div class="detail-banner mandatory">Mandatory checkpoint: this gate cannot be skipped.</div>' : ''}
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">Type</span><span class="detail-value">${esc(typeMeta.icon)} ${esc(typeMeta.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">Step ID</span><span class="detail-value">${esc(data.stepId)}</span></div>
+            <div style="margin-top:8px;color:var(--text-muted);font-size:0.85em;">Description</div>
+            <div style="margin-top:4px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap;">${esc(data.description || 'No description')}</div>
+            ${isDelegation ? `<div class="detail-row"><span class="detail-key">Agent</span><span class="detail-value">${esc(data.agent || 'unknown')}</span></div>` : ''}
+        </div>
+    `;
+}
+
+function showRuleNodeDetails(node) {
+    const details = document.getElementById('rulesDetailsContent');
+    const data = node.data();
+    const typeMeta = getStepTypeMeta(data.stepType);
+    const isDelegation = data.stepType === 'delegation';
+    const isGate = data.stepType === 'gate';
+
+    details.innerHTML = `
+        <div class="panel-title">${esc(data.label)}</div>
+        ${isGate ? '<div class="detail-banner mandatory">Mandatory checkpoint: this gate cannot be skipped.</div>' : ''}
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">Type</span><span class="detail-value">${esc(typeMeta.icon)} ${esc(typeMeta.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">Step ID</span><span class="detail-value">${esc(data.stepId)}</span></div>
+            <div style="margin-top:8px;color:var(--text-muted);font-size:0.85em;">Description</div>
+            <div style="margin-top:4px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap;">${esc(data.description || 'No description')}</div>
+            ${isDelegation ? `<div class="detail-row"><span class="detail-key">Agent</span><span class="detail-value">${esc(data.agent || 'unknown')}</span></div>` : ''}
+        </div>
+    `;
+}
+
+function showProtocolEdgeDetails(edge) {
+    const details = document.getElementById('protocolDetailsContent');
+    const data = edge.data();
+    const source = edge.source().data();
+    const target = edge.target().data();
+
+    details.innerHTML = `
+        <div class="panel-title">Flow Edge</div>
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">From</span><span class="detail-value">${esc(source.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">To</span><span class="detail-value">${esc(target.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">Label</span><span class="detail-value">${esc(data.label || 'none')}</span></div>
+        </div>
+    `;
+}
+
+function showRuleEdgeDetails(edge) {
+    const details = document.getElementById('rulesDetailsContent');
+    const data = edge.data();
+    const source = edge.source().data();
+    const target = edge.target().data();
+
+    details.innerHTML = `
+        <div class="panel-title">Flow Edge</div>
+        <div class="detail-block">
+            <div class="detail-row"><span class="detail-key">From</span><span class="detail-value">${esc(source.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">To</span><span class="detail-value">${esc(target.label)}</span></div>
+            <div class="detail-row"><span class="detail-key">Label</span><span class="detail-value">${esc(data.label || 'none')}</span></div>
+        </div>
+    `;
+}
+
+function buildFlowElements(flow, edgePrefix) {
+    const elements = [];
+    const stepIds = new Set();
+
+    (flow.steps || []).forEach((step) => {
+        const typeMeta = getStepTypeMeta(step.type);
+        stepIds.add(step.id);
+        elements.push({
+            data: {
+                id: `step:${step.id}`,
+                stepId: step.id,
+                stepType: step.type || 'action',
+                label: step.label || step.id,
+                displayLabel: typeMeta.icon,
+                iconSvg: typeMeta.svg,
+                description: step.description || '',
+                agent: step.agent || '',
+            },
+        });
+    });
+
+    (flow.edges || []).forEach((edge, index) => {
+        if (!stepIds.has(edge.from) || !stepIds.has(edge.to)) {
+            return;
+        }
+        elements.push({
+            data: {
+                id: `${edgePrefix}:${flow.id}:${edge.from}:${edge.to}:${index}`,
+                source: `step:${edge.from}`,
+                target: `step:${edge.to}`,
+                label: edge.label || '',
+            },
+        });
+    });
+
+    return elements;
+}
+
+function buildProtocolElements(protocol) {
+    return buildFlowElements(protocol, 'flow');
+}
+
+function buildRuleElements(rule) {
+    return buildFlowElements(rule, 'rule-flow');
+}
+
+function hideProtocolTooltip() {
+    const tooltip = document.getElementById('protocolNodeTooltip');
+    tooltip.hidden = true;
+}
+
+function hideRulesTooltip() {
+    const tooltip = document.getElementById('rulesNodeTooltip');
+    tooltip.hidden = true;
+}
+
+function showProtocolTooltip(node) {
+    const tooltip = document.getElementById('protocolNodeTooltip');
+    const graph = document.getElementById('protocolGraph');
+    const meta = getStepTypeMeta(node.data('stepType'));
+
+    tooltip.innerHTML = `
+        <div class="protocol-tooltip-title">${esc(meta.icon)} ${esc(node.data('label'))}</div>
+        <div>${esc(node.data('description') || 'No description')}</div>
+    `;
+
+    const pos = node.renderedPosition();
+    const maxWidth = 280;
+    const left = Math.max(8, Math.min(pos.x + 16, graph.clientWidth - maxWidth - 8));
+    const top = Math.max(8, Math.min(pos.y - 12, graph.clientHeight - 90));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.hidden = false;
+}
+
+function showRulesTooltip(node) {
+    const tooltip = document.getElementById('rulesNodeTooltip');
+    const graph = document.getElementById('rulesGraph');
+    const meta = getStepTypeMeta(node.data('stepType'));
+
+    tooltip.innerHTML = `
+        <div class="protocol-tooltip-title">${esc(meta.icon)} ${esc(node.data('label'))}</div>
+        <div>${esc(node.data('description') || 'No description')}</div>
+    `;
+
+    const pos = node.renderedPosition();
+    const maxWidth = 280;
+    const left = Math.max(8, Math.min(pos.x + 16, graph.clientWidth - maxWidth - 8));
+    const top = Math.max(8, Math.min(pos.y - 12, graph.clientHeight - 90));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.hidden = false;
+}
+
+function initProtocolGraph(protocol) {
+    const graphEl = document.getElementById('protocolGraph');
+    const elements = buildProtocolElements(protocol);
+
+    if (protocolCy) {
+        protocolCy.destroy();
+        protocolCy = null;
+    }
+
+    protocolCy = cytoscape({
+        container: graphEl,
+        elements,
+        minZoom: 0.3,
+        maxZoom: 4,
+        wheelSensitivity: 0.25,
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    label: 'data(label)',
+                    color: '#d1d5db',
+                    'font-size': 11,
+                    'font-weight': 600,
+                    'text-valign': 'bottom',
+                    'text-halign': 'center',
+                    'text-margin-y': 10,
+                    'text-wrap': 'wrap',
+                    'text-max-width': 130,
+                    width: 120,
+                    height: 70,
+                    'border-width': 1.5,
+                    'border-color': '#999',
+                    'background-color': '#2a2d32',
+                    shape: 'round-rectangle',
+                    'background-image': 'data(iconSvg)',
+                    'background-width': 64,
+                    'background-height': 64,
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    'background-image-opacity': 1,
+                },
+            },
+            {
+                selector: 'edge',
+                style: {
+                    width: 1.5,
+                    'line-color': '#c8c8c8',
+                    'target-arrow-color': '#ddd',
+                    'target-arrow-shape': 'triangle', 'source-arrow-shape': 'circle', 'source-arrow-color': '#ddd', 'arrow-scale': 1.2,
+                    'curve-style': 'bezier',
+                    label: 'data(label)',
+                    color: '#bbb',
+                    'font-size': 9,
+                    'text-background-color': '#111827',
+                    'text-background-opacity': 0.85,
+                    'text-background-padding': 2,
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -8,
+                },
+            },
+            {
+                selector: ':selected',
+                style: {
+                    'overlay-color': '#f8fafc',
+                    'overlay-opacity': 0.12,
+                    'overlay-padding': 6,
+                },
+            },
+        ],
+        layout: {
+            name: 'dagre',
+            rankDir: 'LR',
+            nodeSep: 70,
+            rankSep: 100,
+            padding: 30,
+            fit: true,
+            animate: true,
+            animationDuration: 350,
+        },
+    });
+
+    protocolCy.on('tap', 'node', (evt) => {
+        hideProtocolTooltip();
+        showProtocolNodeDetails(evt.target);
+    });
+
+    protocolCy.on('tap', 'edge', (evt) => {
+        hideProtocolTooltip();
+        showProtocolEdgeDetails(evt.target);
+    });
+
+    protocolCy.on('tap', (evt) => {
+        if (evt.target === protocolCy) {
+            hideProtocolTooltip();
+            showProtocolOverview('Click a step to inspect details.');
+        }
+    });
+
+    protocolCy.on('mouseover', 'node', (evt) => {
+        graphEl.style.cursor = 'pointer';
+        showProtocolTooltip(evt.target);
+    });
+
+    protocolCy.on('mouseout', 'node', () => {
+        graphEl.style.cursor = 'default';
+        hideProtocolTooltip();
+    });
+
+    setProtocolLoading(false);
+}
+
+function initRulesGraph(rule) {
+    const graphEl = document.getElementById('rulesGraph');
+    const elements = buildRuleElements(rule);
+
+    if (rulesCy) {
+        rulesCy.destroy();
+        rulesCy = null;
+    }
+
+    rulesCy = cytoscape({
+        container: graphEl,
+        elements,
+        minZoom: 0.3,
+        maxZoom: 4,
+        wheelSensitivity: 0.25,
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    label: 'data(label)',
+                    color: '#d1d5db',
+                    'font-size': 11,
+                    'font-weight': 600,
+                    'text-valign': 'bottom',
+                    'text-halign': 'center',
+                    'text-margin-y': 10,
+                    'text-wrap': 'wrap',
+                    'text-max-width': 130,
+                    width: 120,
+                    height: 70,
+                    'border-width': 1.5,
+                    'border-color': '#999',
+                    'background-color': '#2a2d32',
+                    shape: 'round-rectangle',
+                    'background-image': 'data(iconSvg)',
+                    'background-width': 64,
+                    'background-height': 64,
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    'background-image-opacity': 1,
+                },
+            },
+            {
+                selector: 'edge',
+                style: {
+                    width: 1.5,
+                    'line-color': '#c8c8c8',
+                    'target-arrow-color': '#ddd',
+                    'target-arrow-shape': 'triangle', 'source-arrow-shape': 'circle', 'source-arrow-color': '#ddd', 'arrow-scale': 1.2,
+                    'curve-style': 'bezier',
+                    label: 'data(label)',
+                    color: '#bbb',
+                    'font-size': 9,
+                    'text-background-color': '#111827',
+                    'text-background-opacity': 0.85,
+                    'text-background-padding': 2,
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -8,
+                },
+            },
+            {
+                selector: ':selected',
+                style: {
+                    'overlay-color': '#f8fafc',
+                    'overlay-opacity': 0.12,
+                    'overlay-padding': 6,
+                },
+            },
+        ],
+        layout: {
+            name: 'dagre',
+            rankDir: 'LR',
+            nodeSep: 70,
+            rankSep: 100,
+            padding: 30,
+            fit: true,
+            animate: true,
+            animationDuration: 350,
+        },
+    });
+
+    rulesCy.on('tap', 'node', (evt) => {
+        hideRulesTooltip();
+        showRuleNodeDetails(evt.target);
+    });
+
+    rulesCy.on('tap', 'edge', (evt) => {
+        hideRulesTooltip();
+        showRuleEdgeDetails(evt.target);
+    });
+
+    rulesCy.on('tap', (evt) => {
+        if (evt.target === rulesCy) {
+            hideRulesTooltip();
+            showRulesOverview('Click a step to inspect details.');
+        }
+    });
+
+    rulesCy.on('mouseover', 'node', (evt) => {
+        graphEl.style.cursor = 'pointer';
+        showRulesTooltip(evt.target);
+    });
+
+    rulesCy.on('mouseout', 'node', () => {
+        graphEl.style.cursor = 'default';
+        hideRulesTooltip();
+    });
+
+    setRulesLoading(false);
+}
+
+function getFilteredProtocols() {
+    const query = protocolState.searchQuery.trim().toLowerCase();
+    return protocolState.protocols.filter((protocol) => {
+        const categoryMatch = protocolState.selectedCategory === 'all'
+            || normalizeCategory(protocol.category) === protocolState.selectedCategory;
+        if (!categoryMatch) {
+            return false;
+        }
+        if (!query) {
+            return true;
+        }
+        return getFlowSearchText(protocol).includes(query);
+    });
+}
+
+function getFilteredRules() {
+    const query = rulesState.searchQuery.trim().toLowerCase();
+    return rulesState.rules.filter((rule) => {
+        const categoryMatch = rulesState.selectedCategory === 'all'
+            || normalizeCategory(rule.category) === rulesState.selectedCategory;
+        if (!categoryMatch) {
+            return false;
+        }
+        if (!query) {
+            return true;
+        }
+        return getFlowSearchText(rule).includes(query);
+    });
+}
+
+function clearProtocolGraph() {
+    hideProtocolTooltip();
+    if (protocolCy) {
+        protocolCy.destroy();
+        protocolCy = null;
+    }
+}
+
+function clearRulesGraph() {
+    hideRulesTooltip();
+    if (rulesCy) {
+        rulesCy.destroy();
+        rulesCy = null;
+    }
+}
+
+function renderProtocolCards() {
+    const selector = document.getElementById('protocolSelector');
+
+    if (!protocolState.filteredProtocols.length) {
+        selector.innerHTML = '<div class="empty-state-card">No protocol flows match current filters.</div>';
+        return;
+    }
+
+    selector.innerHTML = protocolState.filteredProtocols.map((protocol) => {
+        const selectedClass = protocol.id === protocolState.selectedProtocolId ? 'selected' : '';
+        const stepCount = Array.isArray(protocol.steps) ? protocol.steps.length : 0;
+        const category = formatCategoryLabel(protocol.category);
+        const mode = protocol.enforcementMode || 'unknown';
+        const modeIcon = mode === 'blocking' ? '🟢' : mode === 'partial' ? '🟠' : mode === 'none' ? '🔴' : '❓';
+        const modeLabel = mode === 'blocking' ? 'Blocking' : mode === 'partial' ? 'Partial' : mode === 'none' ? 'Not Enforced' : 'Unknown';
+
+        return `
+            <button class="protocol-card ${selectedClass}" type="button" data-protocol-id="${esc(protocol.id)}">
+                <div class="protocol-name">${esc(protocol.name || protocol.id)}</div>
+                <div class="protocol-trigger">Trigger: ${esc(protocol.trigger || 'N/A')}</div>
+                <div class="protocol-meta">
+                    <span class="category-badge">${esc(category)}</span>
+                    <span>${stepCount} steps</span>
+                    <span title="${esc(modeLabel + (protocol.enforcementLayer ? ' · ' + protocol.enforcementLayer : ''))}" style="cursor:help">${modeIcon} ${esc(modeLabel)}</span>
+                </div>
+            </button>
+        `;
+    }).join('');
+}
+
+function renderRulesCards() {
+    const selector = document.getElementById('rulesSelector');
+
+    if (!rulesState.filteredRules.length) {
+        selector.innerHTML = '<div class="empty-state-card">No policy rules match current filters.</div>';
+        return;
+    }
+
+    selector.innerHTML = rulesState.filteredRules.map((rule) => {
+        const selectedClass = rule.id === rulesState.selectedRuleId ? 'selected' : '';
+        const stepCount = Array.isArray(rule.steps) ? rule.steps.length : 0;
+        const shortDescription = String(rule.description || 'No description').slice(0, 140);
+        const category = formatCategoryLabel(rule.category);
+        const mode = rule.enforcementMode || 'unknown';
+        const modeIcon = mode === 'blocking' ? '🟢' : mode === 'advisory' ? '🟡' : mode === 'log-only' ? '🟡' : mode === 'documentation' ? '⚪' : '❓';
+        const modeLabel = mode === 'blocking' ? 'Blocking' : mode === 'advisory' ? 'Advisory' : mode === 'log-only' ? 'Log-only' : mode === 'documentation' ? 'Docs only' : 'Unknown';
+
+        return `
+            <button class="protocol-card ${selectedClass}" type="button" data-rule-id="${esc(rule.id)}">
+                <div class="protocol-name">${esc(rule.name || rule.id)}</div>
+                <div class="protocol-description">${esc(shortDescription)}</div>
+                <div class="protocol-meta">
+                    <span class="category-badge">${esc(category)}</span>
+                    <span>${stepCount} steps</span>
+                    <span title="${esc(modeLabel + (rule.enforcementLayer ? ' · ' + rule.enforcementLayer : ''))}" style="cursor:help">${modeIcon} ${esc(modeLabel)}</span>
+                </div>
+            </button>
+        `;
+    }).join('');
+}
+
+function selectProtocol(protocolId) {
+    if (!protocolId) {
+        return;
+    }
+
+    const protocol = protocolState.filteredProtocols.find((item) => item.id === protocolId)
+        || protocolState.protocols.find((item) => item.id === protocolId);
+    if (!protocol) {
+        return;
+    }
+
+    protocolState.selectedProtocolId = protocolId;
+    renderProtocolCards();
+    showProtocolOverview('Loading selected protocol...');
+    setProtocolLoading(true, 'Rendering protocol flow...');
+    initProtocolGraph(protocol);
+}
+
+function selectRule(ruleId) {
+    if (!ruleId) {
+        return;
+    }
+
+    const rule = rulesState.filteredRules.find((item) => item.id === ruleId)
+        || rulesState.rules.find((item) => item.id === ruleId);
+    if (!rule) {
+        return;
+    }
+
+    rulesState.selectedRuleId = ruleId;
+    renderRulesCards();
+    showRulesOverview('Loading selected rule...');
+    setRulesLoading(true, 'Rendering policy rule flow...');
+    initRulesGraph(rule);
+}
+
+function updateProtocolFilters(options = {}) {
+    const forceRender = Boolean(options.forceRender);
+    const previousSelectedId = protocolState.selectedProtocolId;
+
+    protocolState.filteredProtocols = getFilteredProtocols();
+    renderCategoryChips('protocolCategoryChips', protocolState.categories, protocolState.selectedCategory);
+
+    if (!protocolState.filteredProtocols.some((item) => item.id === protocolState.selectedProtocolId)) {
+        protocolState.selectedProtocolId = protocolState.filteredProtocols.length ? protocolState.filteredProtocols[0].id : null;
+    }
+
+    renderProtocolCards();
+
+    if (!protocolState.selectedProtocolId) {
+        clearProtocolGraph();
+        setProtocolLoading(false);
+        showProtocolOverview('No protocols match current filters.');
+        return;
+    }
+
+    const shouldRenderGraph = forceRender || !protocolCy || previousSelectedId !== protocolState.selectedProtocolId;
+    if (shouldRenderGraph) {
+        const protocol = getSelectedProtocol();
+        if (!protocol) {
+            return;
+        }
+        showProtocolOverview('Loading selected protocol...');
+        setProtocolLoading(true, 'Rendering protocol flow...');
+        initProtocolGraph(protocol);
+    }
+}
+
+function updateRulesFilters(options = {}) {
+    const forceRender = Boolean(options.forceRender);
+    const previousSelectedId = rulesState.selectedRuleId;
+
+    rulesState.filteredRules = getFilteredRules();
+    renderCategoryChips('rulesCategoryChips', rulesState.categories, rulesState.selectedCategory);
+
+    if (!rulesState.filteredRules.some((item) => item.id === rulesState.selectedRuleId)) {
+        rulesState.selectedRuleId = rulesState.filteredRules.length ? rulesState.filteredRules[0].id : null;
+    }
+
+    renderRulesCards();
+
+    if (!rulesState.selectedRuleId) {
+        clearRulesGraph();
+        setRulesLoading(false);
+        showRulesOverview('No policy rules match current filters.');
+        return;
+    }
+
+    const shouldRenderGraph = forceRender || !rulesCy || previousSelectedId !== rulesState.selectedRuleId;
+    if (shouldRenderGraph) {
+        const rule = getSelectedRule();
+        if (!rule) {
+            return;
+        }
+        showRulesOverview('Loading selected rule...');
+        setRulesLoading(true, 'Rendering policy rule flow...');
+        initRulesGraph(rule);
+    }
+}
+
+async function loadProtocols() {
+    setProtocolLoading(true, 'Loading protocol flow...');
+    showProtocolOverview('Loading protocols...');
+
+    try {
+        const response = await fetch('/api/protocols');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch protocols');
+        }
+
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid protocol payload');
+        }
+
+        protocolState.protocols = data;
+        protocolState.categories = buildCategoryList(data);
+        if (!protocolState.categories.includes(protocolState.selectedCategory)) {
+            protocolState.selectedCategory = 'all';
+        }
+
+        if (!protocolState.protocols.length) {
+            protocolState.filteredProtocols = [];
+            protocolState.selectedProtocolId = null;
+            renderCategoryChips('protocolCategoryChips', protocolState.categories, protocolState.selectedCategory);
+            renderProtocolCards();
+            clearProtocolGraph();
+            setProtocolLoading(false);
+            showProtocolOverview('No protocols found.');
+            return;
+        }
+
+        updateProtocolFilters({ forceRender: true });
+    } catch (error) {
+        protocolState.protocols = [];
+        protocolState.filteredProtocols = [];
+        protocolState.categories = [];
+        protocolState.selectedProtocolId = null;
+        renderCategoryChips('protocolCategoryChips', [], 'all');
+        renderProtocolCards();
+        clearProtocolGraph();
+        setProtocolLoading(false);
+        showProtocolOverview(`Failed to load protocols: ${error.message}`);
+    }
+}
+
+function ensureProtocolTabInitialized() {
+    if (protocolState.initialized) {
+        return;
+    }
+    protocolState.initialized = true;
+    loadProtocols();
+}
+
+async function loadRules() {
+    setRulesLoading(true, 'Loading policy rule flow...');
+    showRulesOverview('Loading policy rules...');
+
+    try {
+        const response = await fetch('/api/rules');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch policy rules');
+        }
+
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid rules payload');
+        }
+
+        rulesState.rules = data;
+        rulesState.categories = buildCategoryList(data);
+        if (!rulesState.categories.includes(rulesState.selectedCategory)) {
+            rulesState.selectedCategory = 'all';
+        }
+
+        if (!rulesState.rules.length) {
+            rulesState.filteredRules = [];
+            rulesState.selectedRuleId = null;
+            renderCategoryChips('rulesCategoryChips', rulesState.categories, rulesState.selectedCategory);
+            renderRulesCards();
+            clearRulesGraph();
+            setRulesLoading(false);
+            showRulesOverview('No policy rules found.');
+            return;
+        }
+
+        updateRulesFilters({ forceRender: true });
+    } catch (error) {
+        rulesState.rules = [];
+        rulesState.filteredRules = [];
+        rulesState.categories = [];
+        rulesState.selectedRuleId = null;
+        renderCategoryChips('rulesCategoryChips', [], 'all');
+        renderRulesCards();
+        clearRulesGraph();
+        setRulesLoading(false);
+        showRulesOverview(`Failed to load policy rules: ${error.message}`);
+    }
+}
+
+function ensureRulesTabInitialized() {
+    if (rulesState.initialized) {
+        return;
+    }
+    rulesState.initialized = true;
+    loadRules();
+}
+
+function toggleDetailsPanel(panelId, buttonId, onResize) {
+    const panel = document.getElementById(panelId);
+    const btn = document.getElementById(buttonId);
+    panel.classList.toggle('collapsed');
+    btn.innerHTML = panel.classList.contains('collapsed') ? '&lsaquo;' : '&rsaquo;';
+
+    if (typeof onResize === 'function') {
+        setTimeout(() => {
+            onResize();
+        }, 180);
+    }
+}
+
+function activateTab(tabName) {
+    const allowedTabs = new Set(['architecture', 'protocol', 'rules']);
+    const nextTab = allowedTabs.has(tabName) ? tabName : 'architecture';
+
+    document.querySelectorAll('.policy-tab-btn').forEach((btn) => {
+        const isActive = btn.dataset.tab === nextTab;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', String(isActive));
+    });
+
+    document.getElementById('architectureTabPanel').classList.toggle('active', nextTab === 'architecture');
+    document.getElementById('protocolTabPanel').classList.toggle('active', nextTab === 'protocol');
+    document.getElementById('rulesTabPanel').classList.toggle('active', nextTab === 'rules');
+
+    try {
+        localStorage.setItem(TAB_STORAGE_KEY, nextTab);
+    } catch (error) {
+        // ignore localStorage write failures
+    }
+
+    if (nextTab === 'protocol') {
+        ensureProtocolTabInitialized();
+        setTimeout(() => {
+            if (protocolCy) {
+                protocolCy.resize();
+                protocolCy.fit(undefined, 30);
+            }
+        }, 160);
+        return;
+    }
+
+    if (nextTab === 'rules') {
+        ensureRulesTabInitialized();
+        setTimeout(() => {
+            if (rulesCy) {
+                rulesCy.resize();
+                rulesCy.fit(undefined, 30);
+            }
+        }, 160);
+        return;
+    }
+
+    setTimeout(() => {
+        if (architectureCy) {
+            architectureCy.resize();
+            architectureCy.fit(undefined, 30);
+        }
+    }, 160);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.cytoscapeDagre) {
+        cytoscape.use(window.cytoscapeDagre);
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshArchitectureGraphData);
+    document.getElementById('searchBtn').addEventListener('click', searchAgent);
+    document.getElementById('detailsToggle').addEventListener('click', () => {
+        toggleDetailsPanel('detailsPanel', 'detailsToggle', () => {
+            if (architectureCy) {
+                architectureCy.resize();
+                architectureCy.fit(undefined, 30);
+            }
+        });
+    });
+
+    document.getElementById('protocolDetailsToggle').addEventListener('click', () => {
+        toggleDetailsPanel('protocolDetailsPanel', 'protocolDetailsToggle', () => {
+            if (protocolCy) {
+                protocolCy.resize();
+                protocolCy.fit(undefined, 30);
+            }
+        });
+    });
+
+    document.getElementById('rulesDetailsToggle').addEventListener('click', () => {
+        toggleDetailsPanel('rulesDetailsPanel', 'rulesDetailsToggle', () => {
+            if (rulesCy) {
+                rulesCy.resize();
+                rulesCy.fit(undefined, 30);
+            }
+        });
+    });
+
+    document.getElementById('agentSearch').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            searchAgent();
+        }
+    });
+
+    document.querySelectorAll('.policy-tab-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+            activateTab(button.dataset.tab);
+        });
+    });
+
+    document.getElementById('protocolSelector').addEventListener('click', (event) => {
+        const card = event.target.closest('[data-protocol-id]');
+        if (!card) {
+            return;
+        }
+        selectProtocol(card.dataset.protocolId);
+    });
+
+    document.getElementById('rulesSelector').addEventListener('click', (event) => {
+        const card = event.target.closest('[data-rule-id]');
+        if (!card) {
+            return;
+        }
+        selectRule(card.dataset.ruleId);
+    });
+
+    document.getElementById('protocolSearch').addEventListener('input', (event) => {
+        protocolState.searchQuery = event.target.value || '';
+        updateProtocolFilters();
+    });
+
+    document.getElementById('rulesSearch').addEventListener('input', (event) => {
+        rulesState.searchQuery = event.target.value || '';
+        updateRulesFilters();
+    });
+
+    document.getElementById('protocolCategoryChips').addEventListener('click', (event) => {
+        const chip = event.target.closest('[data-category]');
+        if (!chip) {
+            return;
+        }
+        protocolState.selectedCategory = chip.dataset.category || 'all';
+        updateProtocolFilters();
+    });
+
+    document.getElementById('rulesCategoryChips').addEventListener('click', (event) => {
+        const chip = event.target.closest('[data-category]');
+        if (!chip) {
+            return;
+        }
+        rulesState.selectedCategory = chip.dataset.category || 'all';
+        updateRulesFilters();
+    });
+
+    refreshArchitectureGraphData();
+    showProtocolOverview('Select a protocol card to inspect flow details.');
+    showRulesOverview('Select a policy rule card to inspect flow details.');
+
+    let initialTab = 'architecture';
+    try {
+        const stored = localStorage.getItem(TAB_STORAGE_KEY);
+        if (stored === 'architecture' || stored === 'protocol' || stored === 'rules') {
+            initialTab = stored;
+        }
+    } catch (error) {
+        // ignore localStorage read failures
+    }
+
+    activateTab(initialTab);
+});
+</script>
+{% endblock %}

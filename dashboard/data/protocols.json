@@ -1,0 +1,521 @@
+[
+  {
+    "id": "proto-coding",
+    "name": "Code Implementation",
+    "trigger": "code, implement, build, fix bug, refactor",
+    "level": "L1(P)",
+    "steps": [
+      {
+        "id": "c1",
+        "label": "Task involves code?",
+        "type": "decision",
+        "description": "Determine if the task requires code changes"
+      },
+      {
+        "id": "c2",
+        "label": "Trivial one-liner?",
+        "type": "decision",
+        "description": "Single sed, one config value, rename"
+      },
+      {
+        "id": "c3",
+        "label": "Do it directly",
+        "type": "action",
+        "description": "Execute the trivial change yourself"
+      },
+      {
+        "id": "c4",
+        "label": "Write TASK.md",
+        "type": "action",
+        "description": "Write TASK.md with: what to build/fix, acceptance criteria, files involved, constraints"
+      },
+      {
+        "id": "c5",
+        "label": "Spawn Codex",
+        "type": "delegation",
+        "description": "Use coding-agent skill to delegate to Codex CLI",
+        "agent": "coder"
+      },
+      {
+        "id": "c6",
+        "label": "Review output",
+        "type": "action",
+        "description": "Review Codex output when complete"
+      },
+      {
+        "id": "c7",
+        "label": "Verify",
+        "type": "gate",
+        "description": "Test before reporting (Verification Protocol). Never claim fixed without evidence."
+      }
+    ],
+    "edges": [
+      {
+        "from": "c1",
+        "to": "c2",
+        "label": "yes"
+      },
+      {
+        "from": "c1",
+        "to": "c7",
+        "label": "no"
+      },
+      {
+        "from": "c2",
+        "to": "c3",
+        "label": "yes"
+      },
+      {
+        "from": "c2",
+        "to": "c4",
+        "label": "no"
+      },
+      {
+        "from": "c4",
+        "to": "c5"
+      },
+      {
+        "from": "c5",
+        "to": "c6"
+      },
+      {
+        "from": "c6",
+        "to": "c7"
+      }
+    ],
+    "category": "orchestrator",
+    "description": "Delegate ALL code implementation to OpenAI Codex CLI. The orchestrator's role is awareness, strategy, and decision-making \u2014 not writing code. The ONLY exception is trivial one-liners where spawning an agent costs more than doing it. Before delegating: understand the system, read source code, trace data flow, identify root cause with evidence, specify the exact fix in TASK.md with line numbers and data samples, define testable acceptance criteria.",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Shield: Direct Coding Gate (blocks code writes, forces Codex)"
+  },
+  {
+    "id": "proto-delegation",
+    "name": "Delegation Protocol",
+    "trigger": "delegate, task, spawn agent",
+    "level": "L1(P)",
+    "steps": [
+      {
+        "id": "d1",
+        "label": "Read source code",
+        "type": "action",
+        "description": "Understand the system \u2014 read source code, trace data flow"
+      },
+      {
+        "id": "d2",
+        "label": "Identify root cause",
+        "type": "action",
+        "description": "Find the root cause with evidence, not guesswork"
+      },
+      {
+        "id": "d3",
+        "label": "Specify exact fix",
+        "type": "action",
+        "description": "Write TASK.md with line numbers, data samples, and exact changes"
+      },
+      {
+        "id": "d4",
+        "label": "Define acceptance criteria",
+        "type": "gate",
+        "description": "Testable criteria: what command proves it works?"
+      },
+      {
+        "id": "d5",
+        "label": "Delegate to Codex",
+        "type": "delegation",
+        "description": "Spawn Codex with TASK.md in target workdir",
+        "agent": "coder"
+      },
+      {
+        "id": "d6",
+        "label": "Monitor progress",
+        "type": "action",
+        "description": "Check process logs, handle questions"
+      },
+      {
+        "id": "d7",
+        "label": "Verify result",
+        "type": "gate",
+        "description": "Run acceptance criteria. Never claim fixed without deterministic proof."
+      }
+    ],
+    "edges": [
+      {
+        "from": "d1",
+        "to": "d2"
+      },
+      {
+        "from": "d2",
+        "to": "d3"
+      },
+      {
+        "from": "d3",
+        "to": "d4"
+      },
+      {
+        "from": "d4",
+        "to": "d5"
+      },
+      {
+        "from": "d5",
+        "to": "d6"
+      },
+      {
+        "from": "d6",
+        "to": "d7"
+      }
+    ],
+    "category": "orchestrator",
+    "description": "Before delegating to Codex: (1) understand the system yourself \u2014 read source code, trace data flow, (2) identify the root cause with evidence, (3) specify the exact fix in TASK.md with line numbers and data samples, (4) define testable acceptance criteria. 'Investigate and fix' is never an acceptable task specification. The orchestrator does the thinking; Codex does the typing.",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Shield: Delegation Gate (validates TASK.md before Codex)"
+  },
+  {
+    "id": "proto-research",
+    "name": "Research Protocol",
+    "trigger": "research, deep search, investigate, analyze",
+    "level": "L1(P)",
+    "steps": [
+      {
+        "id": "r1",
+        "label": "Evaluate query depth",
+        "type": "decision",
+        "description": "Is this a simple factual lookup or deep research?"
+      },
+      {
+        "id": "r2",
+        "label": "web_search (Brave)",
+        "type": "action",
+        "description": "Quick lookup via Brave search for simple facts"
+      },
+      {
+        "id": "r3",
+        "label": "Spawn researcher agent",
+        "type": "delegation",
+        "description": "Delegate to researcher agent with Perplexity Pro",
+        "agent": "researcher"
+      },
+      {
+        "id": "r4",
+        "label": "Wait for completion",
+        "type": "action",
+        "description": "Push-based \u2014 agent auto-announces when done"
+      },
+      {
+        "id": "r5",
+        "label": "Read output",
+        "type": "action",
+        "description": "Read from research/outputs/<filename>.md"
+      },
+      {
+        "id": "r6",
+        "label": "Synthesize & present",
+        "type": "action",
+        "description": "Summarize findings and present to Manolo"
+      }
+    ],
+    "edges": [
+      {
+        "from": "r1",
+        "to": "r2",
+        "label": "simple"
+      },
+      {
+        "from": "r1",
+        "to": "r3",
+        "label": "deep"
+      },
+      {
+        "from": "r3",
+        "to": "r4"
+      },
+      {
+        "from": "r4",
+        "to": "r5"
+      },
+      {
+        "from": "r5",
+        "to": "r6"
+      }
+    ],
+    "category": "orchestrator",
+    "description": "Two tiers of research. Quick lookup: use web_search (Brave API) for simple factual questions. Deep research: ALWAYS spawn the 'researcher' agent (Perplexity Pro) for thorough investigation. Never use web_search + training data for deep research. If Manolo says 'research this' \u2192 spawn researcher. No exceptions.",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Shield: Research Gate Layer 6e (forces Perplexity for deep research)"
+  },
+  {
+    "id": "proto-config-change",
+    "name": "Config Change Protocol",
+    "trigger": "config, openclaw.json, heartbeat model",
+    "level": "L1(P)",
+    "steps": [
+      {
+        "id": "cc1",
+        "label": "Read current config",
+        "type": "action",
+        "description": "gateway config.get to see current state"
+      },
+      {
+        "id": "cc2",
+        "label": "Plan the change",
+        "type": "action",
+        "description": "Identify exact JSON path and value"
+      },
+      {
+        "id": "cc3",
+        "label": "Apply via config.patch",
+        "type": "gate",
+        "description": "Use gateway config.patch \u2014 NEVER edit directly"
+      },
+      {
+        "id": "cc4",
+        "label": "Patch rejected?",
+        "type": "decision",
+        "description": "Did config.patch accept or reject the change?"
+      },
+      {
+        "id": "cc5",
+        "label": "STOP & investigate",
+        "type": "gate",
+        "description": "Read the error. Ask Manolo if unclear. Do NOT bypass."
+      },
+      {
+        "id": "cc6",
+        "label": "Gateway auto-restarts",
+        "type": "action",
+        "description": "Gateway restarts automatically on accepted config change"
+      },
+      {
+        "id": "cc7",
+        "label": "Verify change works",
+        "type": "gate",
+        "description": "Test: trigger heartbeat, check config.get, etc."
+      }
+    ],
+    "edges": [
+      {
+        "from": "cc1",
+        "to": "cc2"
+      },
+      {
+        "from": "cc2",
+        "to": "cc3"
+      },
+      {
+        "from": "cc3",
+        "to": "cc4"
+      },
+      {
+        "from": "cc4",
+        "to": "cc5",
+        "label": "rejected"
+      },
+      {
+        "from": "cc4",
+        "to": "cc6",
+        "label": "accepted"
+      },
+      {
+        "from": "cc6",
+        "to": "cc7"
+      }
+    ],
+    "category": "system",
+    "description": "Never edit openclaw.json directly. Always use 'gateway config.patch' for configuration changes. This ensures proper validation, hot-reloading, and audit trail. Direct file edits bypass safety checks and can corrupt the gateway state.",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Shield: Config Change Gate Layer 6f (requires backup before config writes) + Protected Path Gate"
+  },
+  {
+    "id": "proto-model-selection",
+    "name": "Model Selection Protocol",
+    "trigger": "model, which model, subagent model",
+    "level": "L1(P)",
+    "steps": [
+      {
+        "id": "m1",
+        "label": "Can it be done without AI?",
+        "type": "decision",
+        "description": "Script, cron, deterministic \u2014 no model needed"
+      },
+      {
+        "id": "m2",
+        "label": "Use deterministic solution",
+        "type": "action",
+        "description": "No AI needed. Zero token cost."
+      },
+      {
+        "id": "m3",
+        "label": "Is a free model available?",
+        "type": "decision",
+        "description": "Check: gpt-5.3-codex (OpenAI Pro), gemini-flash (free tier), ollama (local)"
+      },
+      {
+        "id": "m4",
+        "label": "Use free model",
+        "type": "action",
+        "description": "gpt-5.3-codex, gemini-flash, or ollama depending on task"
+      },
+      {
+        "id": "m5",
+        "label": "Cost-aware selection",
+        "type": "decision",
+        "description": "Match task complexity to model tier"
+      },
+      {
+        "id": "m6",
+        "label": "Heartbeat/routine \u2192 Gemini Flash",
+        "type": "action",
+        "description": "Free, fast, good enough for checks"
+      },
+      {
+        "id": "m7",
+        "label": "Background work \u2192 Codex",
+        "type": "action",
+        "description": "Free via Pro subscription"
+      },
+      {
+        "id": "m8",
+        "label": "Complex reasoning \u2192 Opus",
+        "type": "action",
+        "description": "Main session only, subscription flat rate"
+      }
+    ],
+    "edges": [
+      {
+        "from": "m1",
+        "to": "m2",
+        "label": "yes"
+      },
+      {
+        "from": "m1",
+        "to": "m3",
+        "label": "no"
+      },
+      {
+        "from": "m3",
+        "to": "m4",
+        "label": "yes"
+      },
+      {
+        "from": "m3",
+        "to": "m5",
+        "label": "no"
+      },
+      {
+        "from": "m5",
+        "to": "m6",
+        "label": "routine"
+      },
+      {
+        "from": "m5",
+        "to": "m7",
+        "label": "background"
+      },
+      {
+        "from": "m5",
+        "to": "m8",
+        "label": "complex"
+      }
+    ],
+    "category": "cost",
+    "description": "Hierarchy: deterministic first (scripts, cron, launchd \u2014 zero token cost), then free models, then cost-aware selection. Prefer free > cheap > expensive. Use Opus for complex reasoning, Haiku for routine tasks, local models for repetitive work. Every AI call should justify why it can't be solved deterministically.",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Shield: Model Selection Gate Layer 6g (blocks expensive models for routine tasks) + Model Cost Gate Layer 10d"
+  },
+  {
+    "id": "proto-development",
+    "name": "Autonomous Development",
+    "trigger": "new system, new architecture, strategic decision",
+    "level": "L1(P)",
+    "steps": [
+      {
+        "id": "dev1",
+        "label": "Architect",
+        "type": "action",
+        "description": "Design solution from requirements"
+      },
+      {
+        "id": "dev2",
+        "label": "Self-debate (\u22655 rounds)",
+        "type": "gate",
+        "description": "Stress-test adversarially with Alpha/Beta personas. MANDATORY."
+      },
+      {
+        "id": "dev3",
+        "label": "Opportunity scan",
+        "type": "action",
+        "description": "What else does this enable? Content, tools, benchmarks?"
+      },
+      {
+        "id": "dev4",
+        "label": "Human perspective",
+        "type": "action",
+        "description": "Apply known Manolo challenge patterns from memory"
+      },
+      {
+        "id": "dev5",
+        "label": "Deterministic audit",
+        "type": "gate",
+        "description": "What can be code instead of AI? Map each component. MANDATORY."
+      },
+      {
+        "id": "dev6",
+        "label": "Write TASK.md",
+        "type": "action",
+        "description": "Specify implementation for Codex"
+      },
+      {
+        "id": "dev7",
+        "label": "Build (delegate to Codex)",
+        "type": "delegation",
+        "description": "Spawn Codex with implementation task",
+        "agent": "coder"
+      },
+      {
+        "id": "dev8",
+        "label": "Verify",
+        "type": "gate",
+        "description": "Test with deterministic commands. ALWAYS after build."
+      }
+    ],
+    "edges": [
+      {
+        "from": "dev1",
+        "to": "dev2"
+      },
+      {
+        "from": "dev2",
+        "to": "dev3"
+      },
+      {
+        "from": "dev3",
+        "to": "dev4"
+      },
+      {
+        "from": "dev4",
+        "to": "dev5"
+      },
+      {
+        "from": "dev5",
+        "to": "dev6"
+      },
+      {
+        "from": "dev6",
+        "to": "dev7"
+      },
+      {
+        "from": "dev7",
+        "to": "dev8"
+      }
+    ],
+    "category": "orchestrator",
+    "description": "Mandatory for design-level work. Seven composable operations: Architect (system design), Self-debate (>=5 adversarial rounds), Opportunity scan (market/tech landscape), Human perspective (empathy check), Deterministic audit (can this be non-AI?), Build (implementation), Verify (testing). Minimum before any build: self-debate + deterministic audit. Do NOT skip to build because the design 'feels ready.'",
+    "enforced": true,
+    "enforcementMode": "blocking",
+    "enforcementLayer": "Shield: Autonomous Development Gate Layer 6h (requires self-debate before design-level work)"
+  }
+]

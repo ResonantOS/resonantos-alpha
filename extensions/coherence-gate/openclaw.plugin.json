@@ -1,0 +1,7 @@
+{
+  "id": "coherence-gate",
+  "name": "Coherence Gate",
+  "description": "Task tracking and drift detection for agent coherence",
+  "version": "1.0.0",
+  "configSchema": {}
+}

@@ -1,0 +1,71 @@
+#!/bin/bash
+# unlock-ssot — Temporarily unlock L0/L1 SSoT files for editing
+# REQUIRES: Mac password (sudo). Agent cannot run this alone.
+#
+# Flow:
+#   1. Asks for sudo password
+#   2. Removes immutable flag from all L0/L1 files
+#   3. Waits for you to press Enter when done editing
+#   4. Re-locks everything immediately
+#
+# Usage: ./unlock-ssot [file-pattern]
+#   No args = unlock all L0+L1
+#   With arg = unlock only matching files (e.g. "OVERVIEW" unlocks *OVERVIEW*)
+
+SSOT_ROOT="$(dirname "$0")/../ssot"
+PATTERN="${1:-}"
+
+echo "🔐 SSoT Unlock — Password required"
+echo ""
+
+# Require sudo upfront
+if ! sudo -v 2>/dev/null; then
+  echo "❌ Authentication failed. Aborting."
+  exit 1
+fi
+
+# Find files to unlock
+FILES=()
+for dir in "$SSOT_ROOT"/L0 "$SSOT_ROOT"/L1; do
+  if [ -d "$dir" ]; then
+    while IFS= read -r f; do
+      if [ -z "$PATTERN" ] || echo "$(basename "$f")" | grep -qi "$PATTERN"; then
+        FILES+=("$f")
+      fi
+    done < <(find "$dir" -type f \( -name "*.md" -o -name "*.ai.md" \))
+  fi
+done
+
+if [ ${#FILES[@]} -eq 0 ]; then
+  echo "No matching files found."
+  exit 1
+fi
+
+# Unlock
+for f in "${FILES[@]}"; do
+  sudo chflags nouchg "$f" 2>/dev/null && echo "🔓 Unlocked: $(basename "$f")"
+done
+
+echo ""
+echo "✏️  ${#FILES[@]} files unlocked. Edit now."
+echo "⏱  Auto-locks in 5 minutes, or press Enter to re-lock now..."
+
+# Background auto-lock after 5 minutes
+LOCK_PID=$$
+(sleep 300 && kill -USR1 $LOCK_PID 2>/dev/null) &
+TIMER_PID=$!
+
+# Catch the timer signal
+trap "echo ''; echo '⏱  5 minutes elapsed — auto-locking...'; kill $TIMER_PID 2>/dev/null" USR1
+
+# Wait for Enter OR timer signal
+read -r 2>/dev/null
+kill $TIMER_PID 2>/dev/null
+
+# Re-lock immediately
+for f in "${FILES[@]}"; do
+  chflags uchg "$f" 2>/dev/null && echo "🔒 Re-locked: $(basename "$f")"
+done
+
+echo ""
+echo "✅ All files re-locked."

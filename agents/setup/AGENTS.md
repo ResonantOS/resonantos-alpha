@@ -414,6 +414,113 @@ Help user join the ResonantOS DAO step by step:
 - Default parameters are usually fine
 - Adjust if user has specific needs (large context, budget constraints)
 
+#### Backup Configuration
+Set up automated backups for the user's workspace and memory:
+
+1. **Ask the user:** "Where do you want automated backups stored?"
+   - Options:
+     - **Local only** — backup to another directory on the same machine (simplest)
+     - **External drive** — USB/NAS path
+     - **Cloud** — Google Drive, iCloud, Dropbox, S3, Backblaze B2
+     - **Remote server** — rsync over SSH to another machine
+   - If user doesn't know → recommend **local + cloud** (two copies)
+
+2. **Configure backup script:**
+   - Base script exists at `~/resonantos-alpha/scripts/backup.sh`
+   - Customize `BACKUP_DEST` variable based on user's choice
+   - Default includes: workspace files, memory/, ssot/, openclaw.json
+   - **CRITICAL:** Backups must be encrypted if going to cloud
+   - Recommend `restic` for encrypted incremental backups (if available)
+   - Fallback: `tar + gpg` for simple encrypted archives
+
+3. **Set up backup schedule:**
+   - Ask: "How often should backups run? (daily recommended)"
+   - Create cron job:
+   ```
+   openclaw cron add --name "Workspace Backup" --cron "0 3 * * *" --tz "[user_tz]" --session isolated --model MiniMax-M2.5-Lightning --message "Run backup: execute ~/resonantos-alpha/scripts/backup.sh and report any errors."
+   ```
+
+4. **What gets backed up:**
+   - `~/.openclaw/workspace/` (SOUL.md, USER.md, MEMORY.md, memory/, etc.)
+   - `~/resonantos-alpha/ssot/` (all SSoT documents)
+   - `~/.openclaw/openclaw.json` (config)
+   - `~/resonantos-alpha/logician/rules/` (custom rules)
+   - **NOT backed up:** model caches, node_modules, .git objects (regeneratable)
+
+5. **Verify backup works:**
+   - Run backup manually: `bash ~/resonantos-alpha/scripts/backup.sh`
+   - Check output exists at configured destination
+   - Verify restore path: document how to restore in case of data loss
+
+#### Model Provider Configuration
+Help user set up their AI model providers and allocation strategy:
+
+1. **Inventory current access:**
+   - Ask: "Which AI providers do you have accounts with?"
+     - Anthropic (Claude) — subscription tier? (Free/Pro/Max)
+     - OpenAI (GPT) — subscription? (Free/Plus/Pro)
+     - Google (Gemini) — API key or subscription?
+     - Local models (Ollama, MLX, llama.cpp)?
+     - Other providers (MiniMax, Mistral, Groq, etc.)?
+
+2. **Model allocation strategy:**
+   Based on user's budget and subscriptions, recommend:
+
+   | Role | Budget-Friendly | Mid-Range | Premium |
+   |------|----------------|-----------|---------|
+   | Main agent | Sonnet 4.5 | Opus 4.6 | Opus 4.6 |
+   | Sub-agents | Haiku 4.5 / free tier | MiniMax-M2.5 | MiniMax / Haiku |
+   | Heartbeat | Haiku 4.5 / free | MiniMax-M2.5 | MiniMax |
+   | Cron jobs | Haiku 4.5 / free | MiniMax-M2.5 | MiniMax |
+   | Coding | Claude Code (free) | Codex CLI | Codex CLI |
+   | Embeddings | Ollama (local, free) | Ollama (local) | Ollama (local) |
+
+   - Principle: **expensive models for thinking, cheap models for everything else**
+   - Local embeddings (Ollama + nomic-embed-text) are always free and recommended
+
+3. **Configure in OpenClaw:**
+   - Set default model for main agent
+   - Set models for sub-agents (use cheaper models)
+   - Configure API keys via environment variables (never in config files)
+   - Help user set up Ollama for local embeddings if not installed:
+     ```bash
+     # Install Ollama
+     curl -fsSL https://ollama.ai/install.sh | sh
+     # Pull embedding model
+     ollama pull nomic-embed-text:latest
+     ```
+
+4. **Cost monitoring:**
+   - Explain OpenClaw's usage tracking
+   - Set up budget alerts if supported by provider
+   - Recommend checking `/status` periodically for token usage
+
+5. **Fallback chain:**
+   - Configure fallback models in case primary is unavailable
+   - Example: Opus → Sonnet → Haiku → local model
+   - Document in user's TOOLS.md
+
+#### Channel Configuration
+Help user set up their primary communication channel:
+
+1. **Ask:** "How do you want to communicate with your AI?"
+   - **Telegram** (recommended — rich features, mobile + desktop)
+   - **Discord** (good for community integration)
+   - **Webchat** (simplest, no external account needed)
+   - **Signal** (privacy-focused)
+   - **Other** (Slack, IRC, WhatsApp, etc.)
+
+2. **Guide setup:**
+   - Each channel has its own OpenClaw configuration
+   - Help user create bot token (Telegram) or app (Discord)
+   - Configure in openclaw.json via appropriate method
+   - Test: send a test message through the configured channel
+
+3. **Mobile access:**
+   - Telegram and Discord work natively on mobile
+   - Webchat requires browser access to the gateway
+   - Recommend Telegram for best mobile experience
+
 ### Phase 5: VALIDATE
 
 Present a complete summary:
