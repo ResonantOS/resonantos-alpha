@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-alpha_0.1-7c3aed?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.5.0-7c3aed?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/platform-macOS_%7C_Linux_%7C_Windows-333?style=for-the-badge" alt="Platform">
   <img src="https://img.shields.io/badge/license-RC--SL_v1.0-green?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/OpenClaw-compatible-blue?style=for-the-badge" alt="OpenClaw">
@@ -21,7 +21,7 @@
 **Prerequisites:** Node.js 18+ · Python 3 · Git
 
 ```bash
-git clone https://github.com/ManoloRemiddi/resonantos-alpha.git ~/resonantos-alpha
+git clone https://github.com/ResonantOS/resonantos-alpha.git ~/resonantos-alpha
 node ~/resonantos-alpha/install.js
 ```
 
@@ -42,21 +42,22 @@ It gives your AI collaborator:
 | 🏛️ **DAO** | Resonant Chamber — on-chain governance and community treasury |
 | 🪙 **Token Economy** | $RCT (soulbound governance) + $RES (transferable currency) + REX sub-tokens |
 | 🛒 **Protocol Store** | Buy, sell, and trade AI protocol NFTs on-chain |
-| 🛡️ **Shield** | File protection & security governance *(in development)* |
-| ⚖️ **Logician** | Cost & policy validation *(in development)* |
+| 🛡️ **Shield** | 12 blocking enforcement layers · file protection (2000+ files) · injection detection |
+| ⚖️ **Logician** | Policy engine · 250 facts · 16 rule files · Mangle/Datalog runtime |
+| 📋 **Policy System** | 18 policy rules + 6 protocol flows · enforcement badges · dashboard visualization |
 | 🔄 **Guardian** | Self-healing & incident recovery *(in development)* |
 
 ---
 
-## 📝 Memory System Update (March 2026)
+## 📝 Memory System
 
-**R-Memory has been temporarily removed** as it is not compatible with the latest OpenClaw version. We are working on a improved implementation that will be compatible with OpenClaw's native compaction system.
-
-**Knowledge Base (RAG)** has been added as the new memory layer:
+**Knowledge Base (RAG)** is the primary memory layer:
 - Per-agent SQLite databases with vector embeddings
 - Local Ollama embedding model (nomic-embed-text)
 - Configurable SSoT access per agent (L0/L1/L2)
 - Common KB for shared knowledge across agents
+
+*R-Memory (compression pipeline) is temporarily disabled while being redesigned for compatibility with OpenClaw's native LCM compaction system.*
 
 ---
 
@@ -73,12 +74,13 @@ A social contract between human and AI. The human is sovereign — the AI amplif
 <summary><strong>What the installer does</strong></summary>
 
 1. Checks dependencies (Node 18+, Python 3, Git, OpenClaw)
-2. Installs R-Memory, R-Awareness & Gateway Lifecycle extensions into OpenClaw
+2. Installs extensions into OpenClaw (R-Awareness, Gateway Lifecycle, Shield Gate, Coherence Gate, Usage Tracker)
 3. Creates workspace templates (AGENTS.md, SOUL.md, USER.md, MEMORY.md, etc.)
 4. Sets up the SSoT document structure (L0–L4)
 5. Configures keyword triggers for contextual injection
 6. Installs the Setup Agent for guided onboarding
-7. Installs Dashboard dependencies
+7. Installs Shield daemon and Logician rule engine
+8. Installs Dashboard dependencies
 
 </details>
 
@@ -179,19 +181,19 @@ If the dashboard is running, restart it after pulling to pick up changes.
 
 ---
 
-## 🧠 R-Memory — Infinite Conversations
+## 🧠 Memory Architecture
 
-Your AI's conversations compress in the background, so context never runs out.
+Your AI maintains persistent memory across sessions through multiple layers:
 
-**Three-phase pipeline:**
+| Layer | Purpose |
+|-------|---------|
+| **Knowledge Base (RAG)** | Per-agent SQLite + vector embeddings for semantic search across all documents |
+| **Daily Logs** | `memory/YYYY-MM-DD.md` — raw session notes, decisions, lessons, mistakes |
+| **Long-term Memory** | `MEMORY.md` — curated insights distilled from daily logs |
+| **Shared Memory Logs** | `memory/shared-log/` — structured collaboration logs with DNA sequencing for fine-tuning |
+| **OpenClaw LCM** | Native Lossless Context Management handles conversation compaction |
 
-| Phase | Trigger | Action |
-|-------|---------|--------|
-| **1. Background Compression** | Every turn | Groups messages → compresses via Haiku → caches to disk |
-| **2. Compaction Swap** | 36K tokens | Replaces oldest raw blocks with cached compressed versions |
-| **3. FIFO Eviction** | 80K tokens | Evicts oldest compressed blocks (preserved on disk) |
-
-**Result:** 75–92% token savings. Conversations run indefinitely with minimal information loss.
+*R-Memory (custom compression pipeline) is temporarily disabled while being redesigned to integrate with OpenClaw's native LCM system.*
 
 ---
 
@@ -232,10 +234,13 @@ The Dashboard runs at `localhost:19100` — everything stays on your machine.
 | Page | What You'll Find |
 |------|-----------------|
 | **Overview** | System health, agent status, activity feed |
+| **Shield** | Security status, file protection groups (locked/unlocked), daemon health |
+| **Policy Graph** | 18 policy rules + 6 protocol flows with enforcement badges (🟢 blocking / 🟠 partial / 🔴 not enforced) |
 | **R-Memory** | SSoT document manager, keyword config, file locking |
 | **Wallet** | Solana DevNet integration (DAO, tokens, onboarding) |
 | **Agents** | Agent management and skills |
 | **Projects** | Project tracking, TODO, Ideas |
+| **Protocol Store** | Browse and manage AI protocol NFTs |
 
 ---
 
@@ -254,10 +259,13 @@ Compression triggers, block size, eviction thresholds. Defaults work well — tu
 
 ## 🛡️ Security
 
-- **File Locking** — Critical docs protected via OS-level immutable flags (`chflags uchg`)
+- **Shield Daemon** — Always-on security service (port 9999) with health monitoring
+- **12 Blocking Layers** — Direct Coding Gate, Delegation Gate, Injection Detection, State Claim Gate, Config Change Gate, and more
+- **File Protection** — 2000+ files tracked across 7 groups, OS-level immutable flags (`chflags uchg`)
+- **Logician Policy Engine** — 250 facts, 16 rule files, Mangle/Datalog runtime for governance decisions
+- **YARA Rules** — Nightly updated malware/threat signatures
 - **Sanitization Auditor** — `tools/sanitize-audit.py` scans for leaked secrets before any public release
 - **Local-First** — No cloud dependencies. Your data stays on your machine.
-- **Shield** — Permission validation and sandboxing *(in development)*
 
 ---
 
@@ -276,6 +284,7 @@ Together, building proof that human-AI symbiosis works.
 - [ResonantOS](http://resonantos.com) — Official website
 - [Augmentatism Manifesto](http://augmentatism.com) — The philosophy
 - [OpenClaw](https://github.com/openclaw/openclaw) — The kernel
+- [GitHub Organization](https://github.com/ResonantOS) — Development home
 - [Discord](https://discord.gg/MRESQnf4R4) — Join the community
 
 ---
