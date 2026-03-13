@@ -1,0 +1,590 @@
+{% extends "base.html" %}
+
+{% block title %}Overview - ResonantOS Dashboard{% endblock %}
+{% block page_title %}Overview{% endblock %}
+
+{% block content %}
+<!-- Gateway restart moved to global header -->
+
+<!-- Metrics Cards -->
+<div class="metrics-grid">
+    <!-- Channels Card -->
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="metric-title">Channels</span>
+            <span class="card-status-dots" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                <span class="svc-dot" id="dot-telegram" title="Telegram" style="width:6px;height:6px;border-radius:50%;background:var(--text-muted);"></span>
+            </span>
+        </div>
+        <div class="metric-details" id="channelsInfo">
+            <div class="detail-row muted">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Agents Card -->
+    <div class="metric-card compact">
+        <div class="metric-header">
+            <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span class="metric-title">Agents</span>
+            <span class="metric-inline-value" id="agentCount">-</span>
+            <span class="svc-dot" id="dot-heartbeat" title="Heartbeat" style="margin-left:6px;width:6px;height:6px;border-radius:50%;background:var(--text-muted);"></span>
+        </div>
+        <div class="metric-details" id="agentDetails">
+            <div class="detail-row muted">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Sessions Card -->
+    <div class="metric-card compact">
+        <div class="metric-header">
+            <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
+            <span class="metric-title">Sessions</span>
+            <span class="metric-inline-value" id="sessionCount">-</span>
+        </div>
+        <div class="metric-details" id="sessionDetails">
+            <div class="detail-row muted">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Session Card -->
+    <div class="metric-card compact">
+        <div class="metric-header">
+            <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+            <span class="metric-title">R-Memory</span>
+            <span class="metric-inline-value" id="rmemoryDocs">-</span>
+            <span class="svc-dot" id="dot-rmemory" title="R-Memory" style="margin-left:6px;width:6px;height:6px;border-radius:50%;background:var(--text-muted);"></span>
+        </div>
+        <div class="metric-details" id="rmemoryDetails">
+            <div class="detail-row muted">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Service status dots integrated into metric cards -->
+
+<!-- Memory & Context Health Panel -->
+<div class="card memory-health-card">
+    <div class="card-header">
+        <h2 class="card-title">Memory & Context Health</h2>
+        <span class="card-subtitle" id="memoryTurn"></span>
+    </div>
+    <div class="card-content">
+        <!-- Context Window Bar (Mac Storage Style) -->
+        <div class="storage-bar-container">
+            <div class="storage-bar-header">
+                <span class="storage-title">Context Window</span>
+                <span class="storage-usage" id="contextUsage">--</span>
+            </div>
+            <div class="storage-bar" id="storageBar">
+                <div class="storage-seg" id="segPrompt" title="System Prompt"></div>
+                <div class="storage-seg" id="segWorkspace" title="Workspace Files"></div>
+                <div class="storage-seg" id="segSSoT" title="R-Memory SSoTs"></div>
+                <div class="storage-seg" id="segConvo" title="Live Conversation"></div>
+                <div class="storage-seg" id="segBlocks" title="Compressed Blocks"></div>
+                <!-- Threshold markers -->
+                <div class="threshold-marker" id="markerCompress" title="Compression trigger (36k conversation)">
+                    <span class="threshold-label">36k</span>
+                </div>
+                <div class="threshold-marker marker-evict" id="markerEvict" title="FIFO eviction trigger (80k)">
+                    <span class="threshold-label">80k</span>
+                </div>
+            </div>
+            <div class="storage-legend">
+                <span class="legend-chip"><span class="ldot seg-prompt"></span> System Prompt <span id="legendPrompt">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-workspace"></span> Workspace Files <span id="legendWorkspace">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-ssot"></span> SSoT Docs <span id="legendSSoT">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-convo"></span> Conversation <span id="legendConvo">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-blocks"></span> Compressed Blocks <span id="legendBlocks">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-free"></span> Free <span id="legendFree">-</span></span>
+            </div>
+        </div>
+
+        <!-- Subsystem Status Lights -->
+        <div class="subsystem-grid" id="subsystemGrid">
+            <div class="subsystem-item loading">
+                <span class="sub-dot"></span>
+                <span class="sub-label">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- R-Memory Activity Log -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">R-Memory Activity</h2>
+        <span class="card-subtitle" id="rmemoryEventCount"></span>
+        <button class="btn btn-sm btn-outline" id="btnOpenRmemLog" title="Open R-Memory log in Terminal" style="margin-left:auto;font-size:12px;padding:4px 10px;cursor:pointer;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-secondary);">📄 View Log</button>
+    </div>
+    <div class="card-content activity-feed-container">
+        <div class="activity-feed" id="rmemoryFeed">
+            <div class="activity-log-line info">
+                <span class="log-time">--:--:--</span>
+                <span class="log-type">[INIT]</span>
+                <span class="log-message">Loading events...</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Gateway Banner */
+.gateway-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    margin-bottom: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.gateway-banner.connected { border-color: var(--success); }
+.gateway-banner.disconnected { border-color: var(--error); background: rgba(248,113,113,0.05); }
+
+.gw-status { display: flex; align-items: center; gap: 10px; }
+.gw-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text-muted);
+}
+.gateway-banner.connected .gw-dot { background: var(--success); animation: pulse 2s infinite; }
+.gateway-banner.disconnected .gw-dot { background: var(--error); }
+
+.gw-label { font-weight: 600; font-size: 14px; }
+.gw-details { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+.gw-restart-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; background: var(--bg-tertiary); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-secondary); cursor: pointer;
+    font-size: 12px; transition: all 0.2s;
+}
+.gw-restart-btn:hover { background: var(--bg-hover); border-color: var(--border-light); color: var(--text-primary); }
+
+/* Services Strip */
+.services-strip { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.service-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; background: var(--bg-secondary);
+    border: 1px solid var(--border); border-radius: 20px;
+    font-size: 12px; color: var(--text-secondary);
+}
+.service-chip .svc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+.service-chip.running .svc-dot { background: var(--success); }
+.service-chip.error .svc-dot { background: var(--error); }
+.service-chip.off .svc-dot { background: var(--text-muted); }
+
+.muted { color: var(--text-muted); }
+
+/* Compact metric cards */
+.metric-card.compact .metric-header { margin-bottom: 4px; }
+.metric-inline-value {
+    margin-left: auto;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Memory Health Panel */
+.memory-health-card { margin-bottom: 20px; }
+
+/* Mac Storage Style Bar */
+.storage-bar-container { margin-bottom: 24px; }
+.storage-bar-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.storage-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.storage-usage { font-size: 13px; color: var(--text-secondary); }
+
+.storage-bar {
+    position: relative; height: 20px; background: var(--bg-tertiary);
+    border-radius: 4px; display: flex; overflow: visible;
+    border: 1px solid var(--border);
+}
+.storage-seg {
+    height: 100%; transition: width 0.5s; min-width: 0;
+}
+/* Segment colours */
+#segPrompt { background: #f87171; border-radius: 3px 0 0 3px; }
+#segWorkspace { background: #fb923c; }
+#segSSoT { background: #60a5fa; }
+#segConvo { background: #fbbf24; }
+#segBlocks { background: #a78bfa; }
+
+/* Threshold markers */
+.threshold-marker {
+    position: absolute; top: -4px; bottom: -4px; width: 2px;
+    background: rgba(255,255,255,0.6); z-index: 2; pointer-events: none;
+}
+.threshold-marker .threshold-label {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; color: var(--text-muted); white-space: nowrap;
+    background: var(--bg-secondary); padding: 1px 4px; border-radius: 3px;
+    border: 1px solid var(--border);
+}
+.marker-evict { background: rgba(248,113,113,0.7); }
+
+.storage-legend {
+    display: flex; gap: 14px; margin-top: 8px; font-size: 11px;
+    color: var(--text-muted); flex-wrap: wrap;
+}
+.legend-chip { display: flex; align-items: center; gap: 4px; }
+.ldot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.ldot.seg-prompt { background: #f87171; }
+.ldot.seg-workspace { background: #fb923c; }
+.ldot.seg-ssot { background: #60a5fa; }
+.ldot.seg-convo { background: #fbbf24; }
+.ldot.seg-blocks { background: #a78bfa; }
+.ldot.seg-free { background: var(--bg-tertiary); border: 1px solid var(--border); }
+
+.subsystem-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;
+}
+.subsystem-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 16px; background: var(--bg-tertiary); border-radius: var(--radius);
+    border: 1px solid var(--border); transition: border-color 0.2s;
+}
+.subsystem-item:hover { border-color: var(--border-light); }
+
+.sub-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; background: var(--text-muted); }
+.subsystem-item.ok .sub-dot { background: var(--success); }
+.subsystem-item.warning .sub-dot { background: var(--warning); }
+.subsystem-item.error .sub-dot { background: var(--error); }
+.subsystem-item.idle .sub-dot { background: var(--text-muted); }
+
+.sub-info { display: flex; flex-direction: column; gap: 2px; }
+.sub-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.sub-detail { font-size: 11px; color: var(--text-muted); }
+.sub-time { font-size: 10px; color: var(--text-muted); opacity: 0.7; }
+
+/* Activity Feed */
+.activity-feed-container { max-height: 400px; overflow-y: auto; }
+.activity-feed { font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 12px; }
+.activity-log-line {
+    display: flex; gap: 10px; padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+}
+.activity-log-line:hover { background: var(--bg-hover); }
+.log-time { color: var(--text-muted); white-space: nowrap; }
+.log-type { font-weight: 600; white-space: nowrap; min-width: 80px; }
+.log-type.injection { color: #60a5fa; }
+.log-type.keywords { color: #a78bfa; }
+.log-type.agent_end { color: var(--success); }
+.log-type.plugin_started { color: #fbbf24; }
+.log-type.manifest { color: #34d399; }
+.log-message { color: var(--text-secondary); word-break: break-all; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadAll();
+    setInterval(loadAll, 15000); // refresh every 15s
+});
+
+async function loadAll() {
+    await Promise.all([
+        loadGatewayStatus(),
+        loadHealth(),
+        loadRMemoryStats(),
+        loadMemoryHealth(),
+    ]);
+}
+
+// --- Gateway Status ---
+async function loadGatewayStatus() {
+    try {
+        const res = await fetch('/api/gateway/status');
+        const data = await res.json();
+        setChip('svc-gateway', data.connected ? 'running' : 'error');
+    } catch(e) {
+        setChip('svc-gateway', 'error');
+    }
+}
+
+// --- Health (channels, agents, sessions) ---
+async function loadHealth() {
+    try {
+        const res = await fetch('/api/gateway/health');
+        const h = await res.json();
+        if (h.error) return;
+
+        // Channels
+        const chInfo = document.getElementById('channelsInfo');
+        const channels = h.channels || {};
+        let chHtml = '';
+        for (const [name, ch] of Object.entries(channels)) {
+            const label = (h.channelLabels || {})[name] || name;
+            const probeOk = ch.probe?.ok;
+            const bot = ch.probe?.bot?.username;
+            const running = ch.running;
+            const dot = probeOk ? 'green' : 'red';
+            chHtml += `<div class="detail-row">
+                <span class="dot ${dot}"></span>
+                <span>${label}</span>
+                <span>${bot ? '@' + bot : (running ? 'running' : 'stopped')}</span>
+            </div>`;
+            setChip('svc-telegram', probeOk ? 'running' : 'error');
+        }
+        chInfo.innerHTML = chHtml || '<div class="detail-row muted">No channels</div>';
+
+        // Agents
+        const agents = h.agents || [];
+        document.getElementById('agentCount').textContent = agents.length;
+        let agHtml = '';
+        let totalSessions = 0;
+        for (const ag of agents) {
+            const sc = ag.sessions?.count || 0;
+            totalSessions += sc;
+            const hbModel = ag.heartbeat?.model?.split('/').pop() || '-';
+            agHtml += `<div class="detail-row">
+                <span>${ag.agentId}${ag.isDefault ? ' (default)' : ''}</span>
+                <span>${sc} sessions</span>
+            </div>`;
+
+            // Heartbeat chip
+            if (ag.heartbeat?.enabled) {
+                setChip('svc-heartbeat', 'running');
+            }
+        }
+        document.getElementById('agentDetails').innerHTML = agHtml || '<div class="detail-row muted">-</div>';
+
+        // Sessions
+        document.getElementById('sessionCount').textContent = totalSessions;
+        // Show most recent session age
+        let recentAge = null;
+        for (const ag of agents) {
+            const recent = ag.sessions?.recent;
+            if (recent && recent.length > 0) {
+                const ageMs = recent[0].age;
+                if (recentAge === null || ageMs < recentAge) recentAge = ageMs;
+            }
+        }
+        let sessHtml = '';
+        if (recentAge !== null) {
+            sessHtml = `<div class="detail-row"><span>Last active</span><span>${formatAge(recentAge)}</span></div>`;
+        }
+        document.getElementById('sessionDetails').innerHTML = sessHtml || '<div class="detail-row muted">-</div>';
+
+    } catch(e) {
+        console.error('Health load error:', e);
+    }
+}
+
+// --- R-Memory Stats ---
+async function loadRMemoryStats() {
+    try {
+        const res = await fetch('/api/r-memory/stats');
+        const s = await res.json();
+
+        document.getElementById('rmemoryDocs').textContent = '-';
+
+        // Also load document count
+        const dRes = await fetch('/api/r-memory/documents');
+        const docs = await dRes.json();
+        const docCount = Array.isArray(docs) ? docs.length : 0;
+        document.getElementById('rmemoryDocs').textContent = docCount;
+
+        const locked = Array.isArray(docs) ? docs.filter(d => d.locked).length : 0;
+        let rmHtml = `<div class="detail-row"><span>Blocks in context</span><span>${s.blockCount || 0}</span></div>`;
+        if (s.contentTokens) {
+            rmHtml += `<div class="detail-row"><span>Context tokens</span><span>${s.contentTokens.toLocaleString()}</span></div>`;
+        }
+        rmHtml += `<div class="detail-row"><span>Locked docs</span><span>${locked}</span></div>`;
+        if (s.compressionRatio !== null) {
+            rmHtml += `<div class="detail-row"><span>Compression</span><span>${Math.round(s.compressionRatio * 100)}%</span></div>`;
+        }
+        document.getElementById('rmemoryDetails').innerHTML = rmHtml;
+
+        // Plugin chip
+        setChip('svc-rmemory', s.logsExist ? 'running' : 'off');
+
+        // Shield status managed by sidebar nav icon
+
+        // Render event feed
+        renderRMemoryFeed(s.recentEvents || []);
+        document.getElementById('rmemoryEventCount').textContent = `${(s.recentEvents || []).length} recent events`;
+
+    } catch(e) {
+        console.error('R-Memory stats error:', e);
+    }
+}
+
+function renderRMemoryFeed(events) {
+    const feed = document.getElementById('rmemoryFeed');
+    if (!events.length) {
+        feed.innerHTML = '<div class="activity-log-line info"><span class="log-time">--:--:--</span><span class="log-type">INFO</span><span class="log-message">No events yet</span></div>';
+        return;
+    }
+
+    // Show most recent first
+    const reversed = [...events].reverse();
+
+    feed.innerHTML = reversed.map(ev => {
+        const ts = ev.ts ? new Date(ev.ts).toLocaleTimeString() : '--:--:--';
+        const type = ev.event || 'info';
+        let msg = ev.raw || '';
+
+        // Format known event types
+        switch(type) {
+            case 'compaction_start':
+                msg = `tokensBefore: ${ev.tokensBefore || '?'}, turns: ${ev.turns || 0}, cache: ${ev.cacheSize || '?'}`;
+                break;
+            case 'compaction_done':
+                msg = `swapped: ${ev.turnsCompressed || 0}, kept raw: ${ev.turnsKeptRaw || 0}, ` +
+                      `${ev.raw || '?'}→${ev.compressed || '?'} tok, saving: ${ev.saving || '?'}, ` +
+                      `cache: ${ev.cacheHits || 0}/${(ev.cacheHits||0)+(ev.cacheMisses||0)}`;
+                break;
+            case 'swap_plan':
+                msg = `overflow: ${ev.overflow || '?'}, blocksToSwap: ${ev.blocksToSwap || '?'}`;
+                break;
+            case 'block_compressed':
+                msg = `raw: ${ev.rawTokens || '?'}, compressed: ${ev.compressedTokens || '?'}, saving: ${ev.saving || '?'}`;
+                break;
+            case 'fifo_evicted':
+                msg = `block removed, tokens freed: ${ev.tokensFreed || '?'}`;
+                break;
+            case 'fifo_done':
+                msg = `evicted: ${ev.evictedCount || '?'}, remaining: ${ev.remainingBlocks || '?'}`;
+                break;
+            case 'session':
+                msg = `session: ${ev.id || '?'}, history: ${ev.history || 0}`;
+                break;
+            case 'init':
+                msg = `R-Memory init, cached: ${ev.cachedBlocks || ev.cachedTurns || '?'}, trigger: ${ev.compressTrigger || '?'}`;
+                break;
+            case 'config_loaded':
+                msg = `trigger: ${ev.compressTrigger || '?'}, evict: ${ev.evictTrigger || '?'}`;
+                break;
+        }
+
+        return `<div class="activity-log-line">
+            <span class="log-time">${ts}</span>
+            <span class="log-type ${type}">${type.replace('_', ' ')}</span>
+            <span class="log-message">${msg}</span>
+        </div>`;
+    }).join('');
+}
+
+// --- Memory Health ---
+async function loadMemoryHealth() {
+    try {
+        const res = await fetch('/api/memory/health');
+        const h = await res.json();
+
+        // Turn info
+        if (h.lastTurn) {
+            document.getElementById('memoryTurn').textContent = `Turn ${h.lastTurn}`;
+        }
+
+        // Context window - Mac storage style
+        const cw = h.contextWindow || {};
+        const max = cw.maxTokens || 200000;
+        const actual = cw.actualTotalTokens || 0;
+        const seg = cw.segments || {};
+
+        const usedK = Math.round(actual / 1000);
+        const maxK = Math.round(max / 1000);
+        document.getElementById('contextUsage').textContent = `${usedK}k of ${maxK}k used`;
+
+        // Set segment widths (proportional to max)
+        const pct = (v) => Math.max(0, (v / max) * 100);
+        document.getElementById('segPrompt').style.width = pct(seg.systemPrompt || 0) + '%';
+        document.getElementById('segWorkspace').style.width = pct(seg.workspaceFiles || 0) + '%';
+        document.getElementById('segSSoT').style.width = pct(seg.ssotDocs || 0) + '%';
+        document.getElementById('segConvo').style.width = pct(seg.conversation || 0) + '%';
+        document.getElementById('segBlocks').style.width = pct(seg.compressedBlocks || 0) + '%';
+
+        // Threshold markers (positioned as % of max)
+        document.getElementById('markerCompress').style.left = pct(36000) + '%';
+        document.getElementById('markerEvict').style.left = pct(80000) + '%';
+
+        // Legend values
+        const k = (v) => v >= 1000 ? Math.round(v/1000) + 'k' : v + '';
+        document.getElementById('legendPrompt').textContent = k(seg.systemPrompt || 0);
+        document.getElementById('legendWorkspace').textContent = k(seg.workspaceFiles || 0);
+        document.getElementById('legendSSoT').textContent = `${cw.injectedSSoTs || 0} docs (${k(seg.ssotDocs || 0)})`;
+        document.getElementById('legendConvo').textContent = k(seg.conversation || 0);
+        document.getElementById('legendBlocks').textContent = `${cw.injectedBlocks || 0} (${k(seg.compressedBlocks || 0)})`;
+        document.getElementById('legendFree').textContent = k(Math.max(0, max - actual));
+
+        // Subsystem status lights
+        const grid = document.getElementById('subsystemGrid');
+        const subs = h.subsystems || {};
+        const order = ['plugin', 'injection', 'keywords', 'compression', 'eviction'];
+
+        // Compression progress bar (if estimate available)
+        const est = h.conversationEstimate;
+        let progressHtml = '';
+        if (est) {
+            const estK = Math.round(est.tokens / 1000);
+            const trigK = Math.round(est.trigger / 1000);
+            progressHtml = `
+                <div class="subsystem-item ok" style="grid-column: 1 / -1;">
+                    <span class="sub-dot" style="background: #fbbf24;"></span>
+                    <div class="sub-info" style="flex:1">
+                        <span class="sub-label">Conversation → Compression</span>
+                        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                            <div style="flex:1;height:8px;background:var(--bg-primary);border-radius:4px;overflow:hidden;border:1px solid var(--border)">
+                                <div style="width:${Math.min(est.percent,100)}%;height:100%;background:#fbbf24;border-radius:4px;transition:width 0.5s"></div>
+                            </div>
+                            <span class="sub-detail">${estK}k / ${trigK}k (${est.percent}%) · ${est.msgCount} msgs</span>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        grid.innerHTML = progressHtml + order.map(key => {
+            const s = subs[key];
+            if (!s) return '';
+            const timeStr = s.lastSeen ? new Date(s.lastSeen).toLocaleTimeString() : 'never';
+            return `
+                <div class="subsystem-item ${s.status}">
+                    <span class="sub-dot"></span>
+                    <div class="sub-info">
+                        <span class="sub-label">${s.label}</span>
+                        <span class="sub-detail">${s.detail}</span>
+                        <span class="sub-time">Last: ${timeStr}</span>
+                    </div>
+                </div>`;
+        }).join('');
+
+    } catch(e) {
+        console.error('Memory health error:', e);
+    }
+}
+
+// --- Helpers ---
+function setChip(id, state) {
+    // Map old chip IDs to new dot IDs
+    const dotMap = {'svc-gateway':'dot-gateway','svc-telegram':'dot-telegram','svc-heartbeat':'dot-heartbeat','svc-rmemory':'dot-rmemory','svc-shield':null};
+    const dotId = dotMap[id];
+    if (!dotId) return;
+    const el = document.getElementById(dotId);
+    if (el) {
+        const colors = {running:'var(--success)',error:'var(--error)',off:'var(--text-muted)'};
+        el.style.background = colors[state] || 'var(--text-muted)';
+    }
+}
+
+function formatAge(ms) {
+    if (ms < 60000) return Math.round(ms/1000) + 's ago';
+    if (ms < 3600000) return Math.round(ms/60000) + 'm ago';
+    if (ms < 86400000) return Math.round(ms/3600000) + 'h ago';
+    return Math.round(ms/86400000) + 'd ago';
+}
+
+// --- Open R-Memory Log in Terminal ---
+document.getElementById('btnOpenRmemLog').addEventListener('click', async () => {
+    try {
+        await fetch('/api/r-memory/open-log', { method: 'POST' });
+    } catch(e) {
+        console.error('Failed to open log:', e);
+    }
+});
+
+// Gateway restart handled by base.html confirmRestartGateway()
+</script>
+{% endblock %}

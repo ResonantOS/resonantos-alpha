@@ -1,0 +1,71 @@
+{
+  "id": "chatbot",
+  "name": "Chatbot",
+  "description": "NFT-gated chatbot platform with addon marketplace, ZK-wrapped feature protection, and Solana smart contract integration.",
+  "status": "planning",
+  "priority": "high",
+  "icon": "💬",
+  "color": "#8b5cf6",
+  "createdAt": "2026-02-16T10:34:00Z",
+  "updatedAt": "2026-02-16T10:34:00Z",
+  "deadline": null,
+  "tags": ["solana", "nft", "dao", "chatbot", "wallet"],
+  "tasks": [
+    {
+      "id": "cb-t1",
+      "title": "L3 Spec: NFT-gated addon architecture",
+      "description": "Draft SSOT-L3-CHATBOT-NFT-ADDONS.md. Covers: NFT purchase flow, signed activation proof, local verification, anti-clone (wallet-bound), WASM compilation, Solana program design.",
+      "status": "in_progress",
+      "priority": "high",
+      "createdAt": "2026-02-16T10:34:00Z"
+    },
+    {
+      "id": "cb-t2",
+      "title": "Smart contract: addon NFT minting program",
+      "description": "Solana program for minting addon NFTs. Each NFT represents a feature unlock (icons, multi-bot, custom themes, etc). Returns signed activation proof on verify.",
+      "status": "todo",
+      "priority": "high",
+      "createdAt": "2026-02-16T10:34:00Z"
+    },
+    {
+      "id": "cb-t3",
+      "title": "Feature gate system in chatbot code",
+      "description": "Local verification layer: check stored activation proofs on load, gate premium features, WASM-compiled verification module.",
+      "status": "todo",
+      "priority": "high",
+      "createdAt": "2026-02-16T10:34:00Z"
+    },
+    {
+      "id": "cb-t4",
+      "title": "Addon marketplace UI",
+      "description": "Dashboard section showing available addons, prices (in $RCT tokens), owned status, one-click purchase via wallet.",
+      "status": "todo",
+      "priority": "medium",
+      "createdAt": "2026-02-16T10:34:00Z"
+    },
+    {
+      "id": "cb-t5",
+      "title": "Icon picker integration (done)",
+      "description": "Icon selection UI for chatbot creation with ResonantOS icons + emoji + custom. Backend DB migration for icon/icon_type fields.",
+      "status": "done",
+      "priority": "medium",
+      "createdAt": "2026-02-16T09:57:00Z"
+    },
+    {
+      "id": "cb-t6",
+      "title": "Base chatbot: define free vs premium features",
+      "description": "Decide feature tiers. Free: 1 chatbot, basic theme, no icons. Premium addons: multi-bot, icon packs, custom themes, analytics, knowledge base upload.",
+      "status": "todo",
+      "priority": "high",
+      "createdAt": "2026-02-16T10:34:00Z"
+    },
+    {
+      "id": "cb-t7",
+      "title": "Anti-tamper: WASM compilation + integrity checks",
+      "description": "Compile verification logic to WASM. Add integrity checksums. Raise reverse-engineering barrier for 99% of users.",
+      "status": "todo",
+      "priority": "medium",
+      "createdAt": "2026-02-16T10:34:00Z"
+    }
+  ]
+}

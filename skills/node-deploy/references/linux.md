@@ -28,7 +28,7 @@ sudo npm install -g openclaw
 ### Install ResonantOS
 
 ```bash
-git clone https://github.com/ManoloRemiddi/resonantos-alpha.git ~/resonantos-alpha
+git clone https://github.com/ResonantOS/resonantos-alpha.git ~/resonantos-alpha
 node ~/resonantos-alpha/install.js
 ```
 

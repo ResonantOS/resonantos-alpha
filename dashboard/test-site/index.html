@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget Test Site</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        p { color: #666; line-height: 1.6; }
+        .content { max-width: 800px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>Welcome to Test Site</h1>
+        <p>This is a test website to verify the ResonantOS chat widget is working correctly.</p>
+        <p>You should see a chat bubble in the bottom-right corner. Click it to open the chat.</p>
+        <p>Try asking: "What is ResonantOS?"</p>
+    </div>
+    
+    <!-- ResonantOS Chat Widget -->
+    <script>
+    (function() {
+        var widget = document.createElement('script');
+        widget.src = 'http://localhost:19100/static/js/widget.js';
+        widget.dataset.widgetId = 'acc543cc';
+        widget.dataset.position = 'bottom-right';
+        widget.dataset.theme = 'dark';
+        widget.dataset.primaryColor = '#4ade80';
+        widget.dataset.apiUrl = 'http://localhost:19100/api';
+        document.body.appendChild(widget);
+    })();
+    </script>
+</body>
+</html>

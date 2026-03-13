@@ -55,7 +55,7 @@ Key prerequisites: Node.js 18+, Python 3, Git, pip3.
 
 ```bash
 # Clone alpha repo
-git clone https://github.com/ManoloRemiddi/resonantos-alpha.git ~/resonantos-alpha
+git clone https://github.com/ResonantOS/resonantos-alpha.git ~/resonantos-alpha
 
 # Run installer
 node ~/resonantos-alpha/install.js

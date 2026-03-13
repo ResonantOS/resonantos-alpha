@@ -1,0 +1,14 @@
+{
+  "id": "resonant-economy-dao",
+  "name": "Resonant Economy DAO",
+  "description": "Decentralized Autonomous Organization for the Resonant Economy ecosystem.",
+  "status": "planning",
+  "priority": "high",
+  "icon": "🏛️",
+  "color": "#F39C12",
+  "tags": ["blockchain", "dao", "governance"],
+  "deadline": null,
+  "createdAt": "2026-02-15T00:00:00Z",
+  "updatedAt": "2026-02-15T00:00:00Z",
+  "tasks": []
+}

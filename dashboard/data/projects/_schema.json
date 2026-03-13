@@ -1,0 +1,37 @@
+{
+  "_comment": "Project schema reference — not loaded by app",
+  "project": {
+    "id": "string (uuid)",
+    "name": "string",
+    "description": "string",
+    "status": "active | planning | paused | archived",
+    "priority": "critical | high | medium | low",
+    "icon": "string (emoji)",
+    "color": "string (hex)",
+    "createdAt": "ISO-8601",
+    "updatedAt": "ISO-8601",
+    "deadline": "ISO-8601 | null",
+    "tags": ["string"],
+    "tasks": [
+      {
+        "id": "string (uuid)",
+        "title": "string",
+        "description": "string",
+        "status": "todo | in_progress | blocked | done",
+        "priority": "critical | high | medium | low",
+        "assignee": "string | null",
+        "deadline": "ISO-8601 | null",
+        "blockedBy": "string (reason) | null",
+        "createdAt": "ISO-8601",
+        "updatedAt": "ISO-8601",
+        "completedAt": "ISO-8601 | null"
+      }
+    ],
+    "metrics": {
+      "totalTasks": 0,
+      "completedTasks": 0,
+      "blockedTasks": 0,
+      "completionPercent": 0
+    }
+  }
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ResonantOS Alpha Installer — Cross-platform (macOS, Linux, Windows)
-// Usage: npx https://github.com/ManoloRemiddi/resonantos-alpha install
+// Usage: npx https://github.com/ResonantOS/resonantos-alpha install
 //   or:  node install.js
 
 const { execSync } = require("child_process");
@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const REPO = "https://github.com/ManoloRemiddi/resonantos-alpha.git";
+const REPO = "https://github.com/ResonantOS/resonantos-alpha.git";
 const HOME = os.homedir();
 const INSTALL_DIR = path.join(HOME, "resonantos-alpha");
 const OPENCLAW_AGENT_DIR = path.join(HOME, ".openclaw", "agents", "main", "agent");
@@ -294,5 +294,5 @@ Next steps:
   3. Start Dashboard: cd ~/resonantos-alpha/dashboard && ${python} server_v2.py
   4. Open http://localhost:19100
 
-Docs: https://github.com/ManoloRemiddi/resonantos-alpha
+Docs: https://github.com/ResonantOS/resonantos-alpha
 `);

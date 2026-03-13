@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResonantOS Control Tower</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 2em;
+            color: #00ff00;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .section {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 1.2em;
+            color: #00ff00;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        /* System Health */
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .health-item {
+            background: #0f0f0f;
+            border: 1px solid #2a2a2a;
+            padding: 15px;
+            border-radius: 3px;
+        }
+        
+        .health-label {
+            color: #666;
+            font-size: 0.85em;
+            margin-bottom: 8px;
+        }
+        
+        .health-value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .status-ok { color: #00ff00; }
+        .status-warning { color: #ffaa00; }
+        .status-error { color: #ff0000; }
+        
+        /* Agent Status */
+        .agents-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .agent-card {
+            background: #0f0f0f;
+            border-left: 4px solid #666;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 120px 1fr 200px;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .agent-card.active {
+            border-left-color: #00ff00;
+        }
+        
+        .agent-name {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+        }
+        
+        .status-dot.active {
+            background: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        
+        .agent-task {
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        .token-usage {
+            text-align: right;
+        }
+        
+        .token-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #222;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #00aa00);
+            transition: width 0.3s;
+        }
+        
+        /* Recent Activity */
+        .activity-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .activity-item {
+            background: #0f0f0f;
+            border-left: 2px solid #333;
+            padding: 12px 15px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .activity-time {
+            color: #00ff00;
+            font-size: 0.9em;
+            min-width: 60px;
+        }
+        
+        .activity-agent {
+            color: #00aaff;
+            font-weight: bold;
+            min-width: 100px;
+        }
+        
+        .activity-action {
+            color: #ccc;
+            flex: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .agent-card {
+                grid-template-columns: 1fr;
+            }
+            
+            .token-usage {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ ResonantOS Control Tower</h1>
+            <div class="subtitle">Real-Time System Visibility</div>
+        </header>
+        
+        <!-- System Health Section -->
+        <div class="section">
+            <div class="section-title">⚙ System Health</div>
+            <div class="health-grid">
+                <div class="health-item">
+                    <div class="health-label">Overall Status</div>
+                    <div class="health-value status-ok">🟢 All Good</div>
+                </div>
+                <div class="health-item">
+                    <div class="health-label">Cost Today</div>
+                    <div class="health-value" style="color: #00aaff;">$0.15</div>
+                </div>
+                <div class="health-item">
+                    <div class="health-label">Memory System</div>
+                    <div class="health-value status-ok">Healthy</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Agent Status Section -->
+        <div class="section">
+            <div class="section-title">🤖 Agent Status</div>
+            <div class="agents-grid">
+                <div class="agent-card active">
+                    <div class="agent-status">
+                        <span class="status-dot active"></span>
+                        <span class="agent-name">strategist</span>
+                    </div>
+                    <div class="agent-task">Orchestrating memory compression workflow</div>
+                    <div class="token-usage">
+                        <div class="token-label">45k / 200k tokens</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 22.5%;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="agent-card active">
+                    <div class="agent-status">
+                        <span class="status-dot active"></span>
+                        <span class="agent-name">coder</span>
+                    </div>
+                    <div class="agent-task">Implementing Logician API endpoints</div>
+                    <div class="token-usage">
+                        <div class="token-label">82k / 200k tokens</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 41%;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="agent-card">
+                    <div class="agent-status">
+                        <span class="status-dot"></span>
+                        <span class="agent-name">designer</span>
+                    </div>
+                    <div class="agent-task">Idle</div>
+                    <div class="token-usage">
+                        <div class="token-label">12k / 200k tokens</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 6%;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="agent-card active">
+                    <div class="agent-status">
+                        <span class="status-dot active"></span>
+                        <span class="agent-name">researcher</span>
+                    </div>
+                    <div class="agent-task">Compressing session data from last 7 days</div>
+                    <div class="token-usage">
+                        <div class="token-label">156k / 200k tokens</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 78%;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="agent-card">
+                    <div class="agent-status">
+                        <span class="status-dot"></span>
+                        <span class="agent-name">tester</span>
+                    </div>
+                    <div class="agent-task">Idle</div>
+                    <div class="token-usage">
+                        <div class="token-label">8k / 200k tokens</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 4%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity Section -->
+        <div class="section">
+            <div class="section-title">📊 Recent Activity</div>
+            <div class="activity-feed">
+                <div class="activity-item">
+                    <span class="activity-time">09:42</span>
+                    <span class="activity-agent">researcher</span>
+                    <span class="activity-action">Started compression of 127 session files</span>
+                </div>
+                <div class="activity-item">
+                    <span class="activity-time">09:28</span>
+                    <span class="activity-agent">coder</span>
+                    <span class="activity-action">Pushed Logician auth middleware to main branch</span>
+                </div>
+                <div class="activity-item">
+                    <span class="activity-time">09:15</span>
+                    <span class="activity-agent">strategist</span>
+                    <span class="activity-action">Spawned memory compression workflow</span>
+                </div>
+                <div class="activity-item">
+                    <span class="activity-time">08:48</span>
+                    <span class="activity-agent">coder</span>
+                    <span class="activity-action">Completed installer script with auto-recovery</span>
+                </div>
+                <div class="activity-item">
+                    <span class="activity-time">08:22</span>
+                    <span class="activity-agent">tester</span>
+                    <span class="activity-action">Verified Logician daemon health checks</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

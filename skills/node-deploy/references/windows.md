@@ -64,7 +64,7 @@ $env:PYTHONIOENCODING = "utf-8"
 npm install -g openclaw
 
 # 5. Clone and install ResonantOS
-git clone https://github.com/ManoloRemiddi/resonantos-alpha.git $HOME\resonantos-alpha
+git clone https://github.com/ResonantOS/resonantos-alpha.git $HOME\resonantos-alpha
 node $HOME\resonantos-alpha\install.js
 
 # 6. Start OpenClaw node (connects to orchestrator)

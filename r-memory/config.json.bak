@@ -1,0 +1,12 @@
+{
+  "evictTrigger": 80000,
+  "compressTrigger": 36000,
+  "blockSize": 4000,
+  "minCompressChars": 200,
+  "compressionModel": "minimax/MiniMax-M2.5",
+  "maxParallelCompressions": 4,
+  "narrativeModel": "minimax/MiniMax-M2.1",
+  "enabled": true,
+  "narrativeUseToolMode": false,
+  "compressionTarget": 0.5
+}
