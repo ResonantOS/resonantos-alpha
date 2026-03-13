@@ -11,6 +11,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 FORMAT="${1:-json}"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
+DASHBOARD_PORT="${DASHBOARD_PORT:-19100}"
 OPENCLAW_USER="${OPENCLAW_USER:-augmentor}"
 OPENCLAW_HOME="/Users/${OPENCLAW_USER}/.openclaw"
 LAUNCH_AGENT_LABEL="ai.openclaw.gateway"
@@ -36,18 +37,33 @@ sensor_gateway_process() {
 }
 
 sensor_gateway_http() {
-    local response
     local http_code
     # OpenClaw gateway health check
     http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 \
-        "http://127.0.0.1:${GATEWAY_PORT}/api/health" 2>/dev/null || echo "000")
+        "http://127.0.0.1:${GATEWAY_PORT}/api/health" 2>/dev/null || true)
+    [ -n "$http_code" ] || http_code="000"
     
     if [ "$http_code" = "200" ]; then
         echo "ok|Gateway HTTP responding (200 on /api/health)|port:${GATEWAY_PORT}"
-    elif [ "$http_code" = "000" ]; then
+    elif [[ "$http_code" =~ ^0+$ ]]; then
         echo "critical|Gateway HTTP unreachable — connection refused or timeout on port ${GATEWAY_PORT}|http_code:000"
     else
         echo "degraded|Gateway HTTP returned unexpected status ${http_code}|http_code:${http_code}"
+    fi
+}
+
+sensor_dashboard() {
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 \
+        "http://127.0.0.1:${DASHBOARD_PORT}/api/health" 2>/dev/null || true)
+    [ -n "$http_code" ] || http_code="000"
+
+    if [ "$http_code" = "200" ]; then
+        echo "ok|Dashboard HTTP responding (200 on /api/health)|port:${DASHBOARD_PORT}"
+    elif [[ "$http_code" =~ ^0+$ ]]; then
+        echo "critical|Dashboard HTTP unreachable — connection refused or timeout on port ${DASHBOARD_PORT}|http_code:000"
+    else
+        echo "degraded|Dashboard HTTP returned unexpected status ${http_code}|http_code:${http_code}"
     fi
 }
 
@@ -234,6 +250,7 @@ sensor_extensions() {
 declare -a SENSORS=(
     "gateway_process"
     "gateway_http"
+    "dashboard"
     "launchagent"
     "disk_space"
     "memory"

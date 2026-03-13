@@ -1,0 +1,7 @@
+{
+  "id": "shield-gate",
+  "name": "Shield Gate",
+  "description": "Destructive command interceptor",
+  "version": "1.0.0",
+  "configSchema": {}
+}

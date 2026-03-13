@@ -4,11 +4,12 @@
 {% block page_title %}Agents{% endblock %}
 
 {% block content %}
-<!-- Row 1: Augmentor -->
-<div id="orchestratorSection" class="orchestrator-row"></div>
-
-<!-- Row 2: Heartbeat | Codex | Knowledge Base | Voice / Whisper -->
-<div id="servicesRow" class="services-row"></div>
+<!-- Top Row: Heartbeat | Augmentor | R-Memory -->
+<div id="topRow" class="top-row">
+    <div id="heartbeatSection" class="top-side-panel"></div>
+    <div id="orchestratorSection" class="top-center-panel"></div>
+    <div id="memoryAgentSection" class="top-side-panel"></div>
+</div>
 
 <!-- Connection Lines -->
 <div id="connectorLine" style="display:none; text-align:center; padding:4px 0;">
@@ -37,28 +38,22 @@
 
 {% block extra_css %}
 <style>
-/* Top layout: 1 card on row 1, 4 cards on row 2 */
-.orchestrator-row {
-    max-width: 600px;
-    margin: 0 auto 16px;
+/* Top row layout: 3 panels */
+.top-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
 }
-.services-row {
-    max-width: 1280px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    align-items: stretch;
+.top-side-panel {
+    flex: 0 1 300px;
+    min-width: 260px;
+    align-self: center;
 }
-@media (max-width: 1200px) {
-    .services-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media (max-width: 720px) {
-    .services-row {
-        grid-template-columns: 1fr;
-    }
+.top-center-panel {
+    flex: 0 1 520px;
+    min-width: 340px;
 }
 
 /* Heartbeat card (top-left panel) */
@@ -99,7 +94,6 @@
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
-    text-align: center;
 }
 .orchestrator-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(74,222,128,0.15); }
 .orchestrator-card::after {
@@ -109,7 +103,6 @@
 }
 .orchestrator-header {
     display: flex; align-items: center; gap: 16px;
-    justify-content: center;
 }
 .orchestrator-icon { font-size: 40px; }
 .orchestrator-icon img { width: 128px; height: 128px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 12px rgba(16,185,129,0.4); }
@@ -119,7 +112,6 @@
 .orchestrator-meta {
     display: flex; gap: 24px; margin-top: 14px; padding-top: 14px;
     border-top: 1px solid var(--border);
-    justify-content: center;
 }
 .orchestrator-meta-item { display: flex; flex-direction: column; gap: 2px; }
 .orchestrator-meta-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -139,15 +131,10 @@
 }
 .memory-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(96,165,250,0.12); }
 .memory-card::after {
-    content: 'SERVICE';
+    content: 'COMPRESSION';
     position: absolute; top: 6px; right: 10px;
     font-size: 8px; letter-spacing: 1.2px; color: var(--accent, #60a5fa); opacity: 0.7;
 }
-.memory-card--rag::after { content: 'RAG'; }
-.memory-card--voice { --accent: #4ade80; }
-.memory-card--voice::after { content: 'VOICE'; }
-.memory-card--codex { --accent: #4ade80; }
-.memory-card--codex::after { content: 'CODEX'; }
 .memory-card-header { display: flex; align-items: center; gap: 12px; }
 .memory-icon { font-size: 28px; }
 .memory-name { font-size: 16px; font-weight: 600; color: var(--text-primary); }
@@ -331,7 +318,6 @@
 {% block extra_js %}
 <script>
 let agentsData = [];
-let knowledgeBaseActive = false;
 
 document.addEventListener('DOMContentLoaded', loadAgents);
 
@@ -352,23 +338,23 @@ async function loadAgents() {
 }
 
 function renderHeartbeatPanel(agents) {
-    const hb = (agents || []).find(a => a.id === 'heartbeat');
-    const statusClass = hb?.status || 'unknown';
-    const modelShort = hb?.model ? hb.model.split('/').pop() : '-';
-    const hbName = hb?.name || 'Heartbeat';
-    const hbRole = hb?.role || 'System heartbeat';
-    const kbStatusClass = knowledgeBaseActive ? 'active' : 'inactive';
-    const heartbeatCard = `
+    if (!agents || !agents.length) return;
+    const hb = agents.find(a => a.id === 'heartbeat');
+    if (!hb) return;
+    const section = document.getElementById('heartbeatSection');
+    const statusClass = hb.status || 'unknown';
+    const modelShort = hb.model ? hb.model.split('/').pop() : '-';
+    section.innerHTML = `
         <div class="heartbeat-card">
             <div class="heartbeat-card-header">
                 <span class="heartbeat-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="#ef4444" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span>
                 <div style="flex:1;">
-                    <div class="heartbeat-name">${hbName}</div>
-                    <div class="heartbeat-role">${hbRole}</div>
+                    <div class="heartbeat-name">${hb.name}</div>
+                    <div class="heartbeat-role">${hb.role}</div>
                 </div>
                 <span class="sa-status-badge ${statusClass}">
                     <span class="sa-status-dot ${statusClass}"></span>
-                    ${hb?.status || 'unknown'}
+                    ${hb.status}
                 </span>
             </div>
             <div class="heartbeat-meta">
@@ -378,63 +364,14 @@ function renderHeartbeatPanel(agents) {
                 </div>
                 <div class="heartbeat-meta-item">
                     <span class="heartbeat-meta-label">Interval</span>
-                    <span class="heartbeat-meta-value">${hb?.interval || '-'}</span>
+                    <span class="heartbeat-meta-value">${hb.interval || '-'}</span>
                 </div>
-                ${hb?.activeWindow ? `<div class="heartbeat-meta-item">
+                ${hb.activeWindow ? `<div class="heartbeat-meta-item">
                     <span class="heartbeat-meta-label">Active</span>
                     <span class="heartbeat-meta-value">${hb.activeWindow}</span>
                 </div>` : ''}
             </div>
         </div>`;
-    const codexCard = `
-        <div class="memory-card memory-card--codex">
-            <div class="memory-card-header">
-                <span class="memory-icon">🧠</span>
-                <div>
-                    <div class="memory-name">Coder: Codex CLI</div>
-                    <div class="memory-role">Implementation engine</div>
-                </div>
-                <span class="agent-status-dot active" style="margin-left:auto;"></span>
-            </div>
-            <div style="margin-top:12px; font-size:12px; color:var(--text-secondary);">
-                <div style="margin-bottom:6px;">Model in use: <strong>${CODEX_MODEL}</strong></div>
-                <div>Provider: <strong>OpenAI Codex</strong></div>
-            </div>
-        </div>`;
-    const knowledgeBaseCard = `
-        <div class="memory-card memory-card--rag">
-            <div class="memory-card-header">
-                <span class="memory-icon">📚</span>
-                <div>
-                    <div class="memory-name">Knowledge Base</div>
-                    <div class="memory-role">Per-agent RAG</div>
-                </div>
-                <span class="agent-status-dot ${kbStatusClass}" style="margin-left:auto;"></span>
-            </div>
-            <div style="margin-top:12px; font-size:12px; color:var(--text-secondary);">
-                <div style="margin-bottom:8px;">Embedding: <strong>nomic-embed-text</strong> (Local Ollama)</div>
-                <a href="/settings#knowledge" class="btn-primary" style="display:block; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-size:13px;">
-                    Settings →
-                </a>
-            </div>
-        </div>`;
-    const voiceCard = `
-        <div class="memory-card memory-card--voice">
-            <div class="memory-card-header">
-                <span class="memory-icon">🎤</span>
-                <div>
-                    <div class="memory-name">Voice / Whisper</div>
-                    <div class="memory-role">Local transcription</div>
-                </div>
-                <span class="agent-status-dot active" style="margin-left:auto;"></span>
-            </div>
-            <div style="margin-top:12px; font-size:12px; color:var(--text-secondary);">
-                <div style="margin-bottom:6px;">Model: <strong>${VOICE_WHISPER_MODEL}</strong></div>
-                <div>Provider: <strong>Local MLX (Apple Silicon)</strong></div>
-            </div>
-        </div>`;
-
-    document.getElementById('servicesRow').innerHTML = `${heartbeatCard}${codexCard}${knowledgeBaseCard}${voiceCard}`;
 }
 
 const AGENT_ICONS = {
@@ -456,8 +393,6 @@ function agentIconHtml(ag, size) {
 
 // Loaded dynamically from user's configured providers
 let KNOWN_MODELS = [];
-const VOICE_WHISPER_MODEL = 'mlx-community/whisper-large-v3-turbo';
-const CODEX_MODEL = 'gpt-5.3-codex';
 
 async function loadAvailableModels() {
     try {
@@ -473,23 +408,15 @@ async function loadAvailableModels() {
 function renderHierarchy(agents) {
     const orchestrator = agents.find(a => a.tier === 0);
     const memoryAgent = agents.find(a => a.agentId === 'memory' && a.virtual);
-    knowledgeBaseActive = Boolean(memoryAgent);
-    const tierOne = agents.filter(a => a.tier === 1 && a.agentId !== 'coder');
-    const direct = tierOne.filter(a => a.category === 'direct');
-    const background = tierOne.filter(a => a.category === 'background');
-    const support = tierOne.filter(a => a.category === 'support');
-    const other = tierOne.filter(a => !['direct','background','support'].includes(a.category));
+    const direct = agents.filter(a => a.tier === 1 && a.category === 'direct');
+    const background = agents.filter(a => a.tier === 1 && a.category === 'background');
+    const support = agents.filter(a => a.tier === 1 && a.category === 'support');
+    const other = agents.filter(a => a.tier === 1 && !['direct','background','support'].includes(a.category));
 
     // Orchestrator
     if (orchestrator) {
         const ag = orchestrator;
-        const fullModel = (typeof ag.mainModel === 'string' && ag.mainModel ? ag.mainModel : '');
-        const model = fullModel.split('/').pop() || '-';
-        const modelOptions = KNOWN_MODELS.map(m =>
-            `<option value="${m.value}" ${m.value === fullModel ? 'selected' : ''}>${m.label}</option>`
-        ).join('');
-        const inList = KNOWN_MODELS.some(m => m.value === fullModel);
-        const customOpt = (!inList && fullModel) ? `<option value="${fullModel}" selected>${model}</option>` : '';
+        const model = (typeof ag.mainModel === 'string' && ag.mainModel ? ag.mainModel : '-').split('/').pop();
         const hb = ag.heartbeat || {};
         const sess = ag.sessions || {};
         document.getElementById('orchestratorSection').innerHTML = `
@@ -504,7 +431,7 @@ function renderHierarchy(agents) {
                 <div class="orchestrator-meta">
                     <div class="orchestrator-meta-item">
                         <span class="orchestrator-meta-label">Model</span>
-                        <select class="agent-model-select" onclick="event.stopPropagation()" onchange="updateAgentModel('${ag.agentId}', this.value)" title="Switch model (triggers gateway restart)">${customOpt}${modelOptions}</select>
+                        <span class="orchestrator-meta-value">${model}</span>
                     </div>
                     <div class="orchestrator-meta-item">
                         <span class="orchestrator-meta-label">Heartbeat</span>
@@ -523,6 +450,62 @@ function renderHierarchy(agents) {
         if (direct.length || background.length || support.length) {
             document.getElementById('connectorLine').style.display = 'block';
         }
+    }
+
+    // Memory agent (right panel in top row)
+    if (memoryAgent) {
+        const subs = memoryAgent.subAgents || {};
+        const comp = subs.compression || {};
+        const narr = subs.narrative || {};
+
+        const compCurrentModel = comp.model || memoryAgent.mainModel || 'anthropic/claude-haiku-4-5';
+        const compOptions = KNOWN_MODELS.map(m =>
+            `<option value="${m.value}" ${m.value === compCurrentModel ? 'selected' : ''}>${m.label}</option>`
+        ).join('');
+        const compInList = KNOWN_MODELS.some(m => m.value === compCurrentModel);
+        const compCustomOpt = compInList ? '' : `<option value="${compCurrentModel}" selected>${compCurrentModel}</option>`;
+
+        const narrCurrentModel = narr.model || 'openai/gpt-4o';
+        const narrOptions = KNOWN_MODELS.map(m =>
+            `<option value="${m.value}" ${m.value === narrCurrentModel ? 'selected' : ''}>${m.label}</option>`
+        ).join('');
+        const narrInList = KNOWN_MODELS.some(m => m.value === narrCurrentModel);
+        const narrCustomOpt = narrInList ? '' : `<option value="${narrCurrentModel}" selected>${narrCurrentModel}</option>`;
+
+        document.getElementById('memoryAgentSection').innerHTML = `
+            <div class="memory-card">
+                <div class="memory-card-header">
+                    <span class="memory-icon">${memoryAgent.emoji}</span>
+                    <div>
+                        <div class="memory-name">${memoryAgent.displayName}</div>
+                        <div class="memory-role">${memoryAgent.role}</div>
+                    </div>
+                    <span class="agent-status-dot ${memoryAgent.status}" style="margin-left:auto;"></span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+                    <div style="padding:10px 12px; background:var(--bg-primary); border-radius:8px; border:1px solid var(--border);">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                            <span style="font-size:16px;">⚙️</span>
+                            <span style="font-size:12px; font-weight:600; color:var(--text-primary);">${comp.label || 'Compression'}</span>
+                            <span style="font-size:11px; color:var(--text-secondary); margin-left:auto;">${comp.calls ? comp.calls + ' calls' : ''}</span>
+                        </div>
+                        <select class="memory-model-select" onchange="updateCompressionModel(this.value)" title="Compression model" style="margin-top:0;">
+                            ${compCustomOpt}${compOptions}
+                        </select>
+                    </div>
+                    <div style="padding:10px 12px; background:var(--bg-primary); border-radius:8px; border:1px solid var(--border);">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                            <span style="font-size:16px;">📝</span>
+                            <span style="font-size:12px; font-weight:600; color:var(--text-primary);">${narr.label || 'Narrative Tracker'}</span>
+                            <span style="font-size:11px; color:var(--text-secondary); margin-left:auto;">${narr.calls ? narr.calls + ' calls' : ''}</span>
+                        </div>
+                        <select class="memory-model-select" onchange="updateNarrativeModel(this.value)" title="Narrative model" style="margin-top:0;">
+                            ${narrCustomOpt}${narrOptions}
+                        </select>
+                        ${narrCurrentModel.toLowerCase().includes('minimax-m2.5') ? '<div style="margin-top:6px;padding:6px 8px;background:#7f1d1d;border:1px solid #dc2626;border-radius:6px;font-size:11px;color:#fca5a5;">⚠️ MiniMax M2.5 is incompatible with the narrative tracker (hallucinates tool calls). R-Memory auto-downgrades to M2.1 at runtime.</div>' : ''}
+                    </div>
+                </div>
+            </div>`;
     }
 
     // Render category sections
@@ -696,10 +679,10 @@ async function updateCompressionModel(model) {
         if (data.ok) {
             const meta = document.querySelector('.memory-meta span');
             if (meta) meta.textContent = 'Model: ' + model.split('/').pop();
-            showToast('RAG model → ' + model.split('/').pop());
+            showToast('R-Memory model → ' + model.split('/').pop());
             showRestartBanner();
         } else {
-            showToast('Failed to update RAG model', 'error');
+            showToast('Failed to update R-Memory model', 'error');
         }
     } catch(e) {
         console.error('Failed to update compression model', e);
@@ -738,15 +721,8 @@ async function updateAgentModel(agentId, model) {
         if (data.ok) {
             const ag = agentsData.find(a => a.agentId === agentId);
             if (ag) ag.mainModel = model;
-            if (data.restarted) {
-                showToast(`${agentId} → ${model.split('/').pop()} (gateway restarted)`);
-            } else if (data.restartError) {
-                showToast(`${agentId} → ${model.split('/').pop()} (restart failed: ${data.restartError})`, 'error');
-                showRestartBanner();
-            } else {
-                showToast(`${agentId} model → ${model.split('/').pop()}`);
-                showRestartBanner();
-            }
+            showToast(`${agentId} model → ${model.split('/').pop()}`);
+            showRestartBanner();
         } else {
             showToast(data.error || 'Failed to update model', 'error');
         }

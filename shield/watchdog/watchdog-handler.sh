@@ -4,7 +4,7 @@
 # Called by: SSH authorized_keys command= restriction
 # 
 # The original SSH command is in $SSH_ORIGINAL_COMMAND
-# Allowed actions: health, restart-gateway, restart-node, version
+# Allowed actions: health, restart-gateway, restart-node, restart-dashboard, version
 #
 # Security: NO shell access, NO file read, NO arbitrary commands.
 # This script validates the action and executes only whitelisted operations.
@@ -12,9 +12,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_DASHBOARD_DIR="${REPO_ROOT}/dashboard"
 LOG_FILE="/tmp/watchdog-handler.log"
 LAUNCH_AGENT_LABEL="ai.openclaw.gateway"
 NODE_LAUNCH_AGENT="ai.openclaw.node"
+DASHBOARD_PORT="${DASHBOARD_PORT:-19100}"
+DASHBOARD_LOG="/tmp/dashboard.log"
 
 log() {
     echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] $*" >> "$LOG_FILE"
@@ -79,6 +83,34 @@ case "$ACTION" in
             log "Node restart: SKIPPED — plist not found"
         fi
         ;;
+
+    restart-dashboard)
+        log "Restarting dashboard service"
+
+        if [ ! -d "$REPO_DASHBOARD_DIR" ]; then
+            echo "{\"action\": \"restart-dashboard\", \"result\": \"failed\", \"message\": \"Dashboard directory not found: ${REPO_DASHBOARD_DIR}\"}"
+            log "Dashboard restart: FAILED — dashboard directory missing"
+            exit 1
+        fi
+
+        pkill -f "server_v2.py" 2>/dev/null || true
+        sleep 2
+
+        (
+            cd "$REPO_DASHBOARD_DIR"
+            nohup python3 server_v2.py >> "$DASHBOARD_LOG" 2>&1 &
+        )
+
+        sleep 3
+        if curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 \
+            "http://127.0.0.1:${DASHBOARD_PORT}/api/health" 2>/dev/null | grep -q "^200$"; then
+            echo '{"action": "restart-dashboard", "result": "success", "message": "Dashboard restarted and responding"}'
+            log "Dashboard restart: SUCCESS"
+        else
+            echo '{"action": "restart-dashboard", "result": "partial", "message": "Dashboard restart attempted but not yet responding"}'
+            log "Dashboard restart: PARTIAL — not responding yet"
+        fi
+        ;;
     
     version)
         # Return OpenClaw version and basic system info
@@ -90,7 +122,8 @@ case "$ACTION" in
         echo "Watchdog Handler — Allowed actions:"
         echo "  health           — Run health sensors (JSON output)"
         echo "  restart-gateway  — Restart OpenClaw gateway service"
-        echo "  restart-node     — Restart OpenClaw node service"  
+        echo "  restart-node     — Restart OpenClaw node service"
+        echo "  restart-dashboard — Restart dashboard service"
         echo "  version          — Show version and uptime"
         echo ""
         echo "This script is called via SSH forced-command restriction."
@@ -99,7 +132,7 @@ case "$ACTION" in
     
     *)
         log "BLOCKED: Unknown action '${ACTION}'"
-        echo '{"error": "Unknown action", "allowed": ["health", "restart-gateway", "restart-node", "version"]}'
+        echo '{"error": "Unknown action", "allowed": ["health", "restart-gateway", "restart-node", "restart-dashboard", "version"]}'
         exit 1
         ;;
 esac

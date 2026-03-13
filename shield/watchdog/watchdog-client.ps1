@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     1. Checks orchestrator health via SSH (forced-command: health sensors)
-    2. If critical: attempts restart via SSH (forced-command: restart-gateway)
+    2. If critical: attempts restart via SSH (forced-command: restart-gateway / restart-dashboard)
     3. If restart fails after retries: alerts via Telegram
     4. Logs everything to local file with structured data
 
@@ -128,6 +128,20 @@ function Save-WatchdogState {
     $State | ConvertTo-Json | Set-Content $stateFile
 }
 
+function Test-SensorCritical {
+    param(
+        $Sensors,
+        [string]$Name
+    )
+
+    $sensorProp = $Sensors.PSObject.Properties[$Name]
+    if ($null -eq $sensorProp -or $null -eq $sensorProp.Value) {
+        return $false
+    }
+
+    return $sensorProp.Value.status -eq "critical"
+}
+
 # --- Main Logic ---
 Write-Log "INFO" "Watchdog check starting"
 
@@ -211,9 +225,10 @@ switch ($overall) {
             }
         }
         
-        # Is it a gateway issue? (most common restartable failure)
-        $gatewayDown = ($health.sensors.gateway_process.status -eq "critical") -or 
-                       ($health.sensors.gateway_http.status -eq "critical")
+        # Restartable service checks
+        $gatewayDown = (Test-SensorCritical -Sensors $health.sensors -Name "gateway_process") -or
+                       (Test-SensorCritical -Sensors $health.sensors -Name "gateway_http")
+        $dashboardDown = Test-SensorCritical -Sensors $health.sensors -Name "dashboard"
         
         if ($gatewayDown -and $state.restartAttempts -lt $MaxRestartAttempts) {
             Write-Log "INFO" "Attempting gateway restart ($($state.restartAttempts + 1)/$MaxRestartAttempts)"
@@ -233,6 +248,31 @@ switch ($overall) {
                         $state.restartAttempts = 0
                         $state.lastHealthy = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ" -AsUTC)
                         Send-TelegramAlert "Gateway was down and has been automatically restarted. System recovered.`nSensors: $($criticalSensors -join ', ')"
+                    }
+                }
+            } else {
+                Write-Log "ERROR" "Restart command failed: $($restartResult.Output)"
+            }
+        }
+
+        if ($dashboardDown -and $state.restartAttempts -lt $MaxRestartAttempts) {
+            Write-Log "INFO" "Attempting dashboard restart ($($state.restartAttempts + 1)/$MaxRestartAttempts)"
+            $restartResult = Invoke-WatchdogSSH -Action "restart-dashboard"
+            $state.restartAttempts++
+
+            if ($restartResult.Success) {
+                Write-Log "INFO" "Restart command sent: $($restartResult.Output)"
+                # Wait and re-check
+                Start-Sleep -Seconds 10
+                $recheck = Invoke-WatchdogSSH -Action "health"
+                if ($recheck.Success) {
+                    $recheckHealth = $recheck.Output | ConvertFrom-Json
+                    if ($recheckHealth.overall -ne "critical") {
+                        Write-Log "INFO" "Dashboard recovered after restart!"
+                        $state.consecutiveFailures = 0
+                        $state.restartAttempts = 0
+                        $state.lastHealthy = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ" -AsUTC)
+                        Send-TelegramAlert "Dashboard was down and has been automatically restarted. System recovered.`nSensors: $($criticalSensors -join ', ')"
                     }
                 }
             } else {

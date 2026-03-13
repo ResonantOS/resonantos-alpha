@@ -35,32 +35,21 @@
         </div>
     </div>
 
-    <div class="metric-stack">
-        <!-- Sessions Card -->
-        <div class="metric-card compact">
-            <div class="metric-header">
-                <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
-                <span class="metric-title">Sessions</span>
-                <span class="metric-inline-value" id="sessionCount">-</span>
-            </div>
-            <div class="metric-details" id="sessionDetails">
-                <div class="detail-row muted">Loading...</div>
-            </div>
+    <!-- Sessions Card -->
+    <div class="metric-card compact">
+        <div class="metric-header">
+            <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
+            <span class="metric-title">Sessions</span>
+            <span class="metric-inline-value" id="sessionCount">-</span>
         </div>
-
-        <!-- Knowledge Base Card -->
-        <div class="metric-card compact knowledge-base-card">
-            <div class="metric-header">
-                <span class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4a2 2 0 0 1 2-2h6.5a2 2 0 0 1 1.6.8L14 5h6a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M12 7h8"/><path d="M12 11h8"/><path d="M12 15h6"/></svg></span>
-                <span class="metric-title">Knowledge Base</span>
-            </div>
-            <div class="metric-details">
-                <div class="detail-row"><span>Embedding</span><span>nomic-embed-text</span></div>
-                <div class="detail-row"><span>Provider</span><span>Local Ollama</span></div>
-                <a href="/settings#knowledge" class="kb-link">Manage in Settings →</a>
-            </div>
+        <div class="metric-details" id="sessionDetails">
+            <div class="detail-row muted">Loading...</div>
         </div>
     </div>
+
+
+
+
 </div>
 
 <!-- Service status dots integrated into metric cards -->
@@ -86,7 +75,6 @@
                 <div class="storage-seg" id="segWorkspace" title="Workspace Files"></div>
                 <div class="storage-seg" id="segSSoT" title="R-Memory SSoTs"></div>
                 <div class="storage-seg" id="segConvo" title="Live Conversation"></div>
-                <div class="storage-seg" id="segBlocks" title="Compacted/Summarized"></div>
                 
                 <!-- Threshold markers -->
                 
@@ -97,7 +85,6 @@
                 <span class="legend-chip"><span class="ldot seg-workspace"></span> Workspace Files <span id="legendWorkspace">-</span></span>
                 <span class="legend-chip"><span class="ldot seg-ssot"></span> SSoT Docs <span id="legendSSoT">-</span></span>
                 <span class="legend-chip"><span class="ldot seg-convo"></span> Conversation <span id="legendConvo">-</span></span>
-                <span class="legend-chip"><span class="ldot seg-blocks"></span> Compacted <span id="legendBlocks">-</span></span>
                 
                 <span class="legend-chip"><span class="ldot seg-free"></span> Free <span id="legendFree">-</span></span>
             </div>
@@ -125,7 +112,17 @@
         <span class="card-subtitle" id="tsWindowLabel">Last 7 days</span>
     </div>
     <div class="card-content">
-        <div class="ts-grid-2col ts-grid-even">
+        <div class="ts-top-grid">
+            <div class="ts-top-card ts-card-primary">
+                <div class="ts-label">💰 What You'd Pay at API Rates (<span id="tsPeriodLabel">7 days</span>)</div>
+                <div id="tsCostActual" class="ts-value ts-value-primary">--</div>
+                <div id="tsProjected" class="ts-source" style="color:#f0b429; font-weight:600;">≈ --/month projected</div>
+                <div id="tsSourceActual" class="ts-source">source: gateway usage-cost (real token counts × published API prices)</div>
+            </div>
+
+        </div>
+
+        <div class="ts-grid-2col">
             <div class="ts-panel">
                 <div class="ts-panel-head">
                     <h3>Per-Component Cost Breakdown</h3>
@@ -149,15 +146,21 @@
                 </div>
             </div>
 
-            <div class="ts-top-card ts-card-primary">
-                <div class="ts-label">💰 What You'd Pay at API Rates (<span id="tsPeriodLabel">7 days</span>)</div>
-                <div id="tsCostActual" class="ts-value ts-value-primary">--</div>
-                <div id="tsProjected" class="ts-source" style="color:#f0b429; font-weight:600;">≈ --/month projected</div>
-                <div id="tsSourceActual" class="ts-source">source: gateway usage-cost (real token counts × published API prices)</div>
+            <div class="ts-panel">
+                <div class="ts-panel-head">
+                    <h3>Daily Cost (Stacked)</h3>
+                    <span class="muted" id="tsChartSource">source: gateway daily cost + component shares</span>
+                </div>
+                <div id="tsDailyChart" class="ts-chart">
+                    <div class="muted">Loading chart...</div>
+                </div>
+                <div id="tsDailyLegend" class="ts-legend"></div>
             </div>
         </div>
 
-        <div class="ts-grid-2col ts-grid-even" style="margin-top:14px;">
+        <div class="ts-grid-2col" style="margin-top:14px;">
+
+
             <div class="ts-panel">
                 <div class="ts-panel-head">
                     <h3>Pricing Reference (Editable)</h3>
@@ -189,17 +192,6 @@
                     <button id="tsSavePricing" class="btn btn-sm btn-outline" type="button">Save Pricing</button>
                     <span id="tsPricingStatus" class="muted"></span>
                 </div>
-            </div>
-
-            <div class="ts-panel">
-                <div class="ts-panel-head">
-                    <h3>Daily Cost (Stacked)</h3>
-                    <span class="muted" id="tsChartSource">source: gateway daily cost + component shares</span>
-                </div>
-                <div id="tsDailyChart" class="ts-chart">
-                    <div class="muted">Loading chart...</div>
-                </div>
-                <div id="tsDailyLegend" class="ts-legend"></div>
             </div>
         </div>
     </div>
@@ -278,20 +270,6 @@
     font-weight: 700;
     color: var(--text-primary);
 }
-.metric-stack {
-    display: grid;
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-.knowledge-base-card .metric-details { gap: 6px; }
-.kb-link {
-    margin-top: 2px;
-    font-size: 12px;
-    color: var(--success);
-    text-decoration: none;
-    font-weight: 600;
-}
-.kb-link:hover { text-decoration: underline; }
 
 /* Memory Health Panel */
 .memory-health-card { margin-bottom: 20px; }
@@ -406,9 +384,6 @@
     display: grid;
     grid-template-columns: 1.4fr 1fr;
     gap: 12px;
-}
-.ts-grid-2col.ts-grid-even {
-    grid-template-columns: 1fr 1fr;
 }
 .ts-panel {
     background: var(--bg-primary);
@@ -569,11 +544,12 @@
 }
 
 @media (max-width: 1200px) {
+    .ts-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ts-grid-2col { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
+    .ts-top-grid { grid-template-columns: 1fr; }
     .ts-stats-grid { grid-template-columns: 1fr 1fr; }
-    .metric-stack { grid-template-rows: unset; }
 }
 
 /* Activity Feed */
@@ -1100,7 +1076,7 @@ async function loadMemoryHealth() {
         document.getElementById('segWorkspace').style.width = pct(seg.workspaceFiles || 0) + '%';
         document.getElementById('segSSoT').style.width = pct(seg.ssotDocs || 0) + '%';
         document.getElementById('segConvo').style.width = pct(seg.conversation || 0) + '%';
-        document.getElementById('segBlocks').style.width = pct(seg.compressedBlocks || 0) + '%';
+        // segBlocks removed
 
         // Threshold markers (positioned as % of max)
         // markerCompress removed
@@ -1127,7 +1103,7 @@ async function loadMemoryHealth() {
             ssotListEl.style.display = 'none';
         }
         document.getElementById('legendConvo').textContent = k(seg.conversation || 0);
-        document.getElementById('legendBlocks').textContent = k(seg.compressedBlocks || 0);
+        // legendBlocks removed
         document.getElementById('legendFree').textContent = k(Math.max(0, max - actual));
 
         // Subsystem status lights
