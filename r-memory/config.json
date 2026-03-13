@@ -6,7 +6,7 @@
   "compressionModel": "minimax/MiniMax-M2.5",
   "maxParallelCompressions": 4,
   "narrativeModel": "minimax/MiniMax-M2.1",
-  "enabled": true,
+  "enabled": false,
   "narrativeUseToolMode": false,
   "compressionTarget": 0.5
 }
