@@ -75,6 +75,8 @@
                 <div class="storage-seg" id="segWorkspace" title="Workspace Files"></div>
                 <div class="storage-seg" id="segSSoT" title="R-Memory SSoTs"></div>
                 <div class="storage-seg" id="segConvo" title="Live Conversation"></div>
+                <div class="storage-seg" id="segHeaders" title="Memory Headers"></div>
+                <div class="storage-seg" id="segLCM" title="LCM Summaries"></div>
                 
                 <!-- Threshold markers -->
                 
@@ -85,6 +87,8 @@
                 <span class="legend-chip"><span class="ldot seg-workspace"></span> Workspace Files <span id="legendWorkspace">-</span></span>
                 <span class="legend-chip"><span class="ldot seg-ssot"></span> SSoT Docs <span id="legendSSoT">-</span></span>
                 <span class="legend-chip"><span class="ldot seg-convo"></span> Conversation <span id="legendConvo">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-headers"></span> Headers <span id="legendHeaders">-</span></span>
+                <span class="legend-chip"><span class="ldot seg-lcm"></span> LCM Summaries <span id="legendLCM">-</span></span>
                 
                 <span class="legend-chip"><span class="ldot seg-free"></span> Free <span id="legendFree">-</span></span>
             </div>
@@ -293,7 +297,8 @@
 #segWorkspace { background: #fb923c; }
 #segSSoT { background: #60a5fa; }
 #segConvo { background: #fbbf24; }
-#segBlocks { background: #a78bfa; }
+#segHeaders { background: #a78bfa; }
+#segLCM { background: #f472b6; }
 
 /* Threshold markers */
 .threshold-marker {
@@ -318,7 +323,8 @@
 .ldot.seg-workspace { background: #fb923c; }
 .ldot.seg-ssot { background: #60a5fa; }
 .ldot.seg-convo { background: #fbbf24; }
-.ldot.seg-blocks { background: #a78bfa; }
+.ldot.seg-headers { background: #a78bfa; }
+.ldot.seg-lcm { background: #f472b6; }
 .ldot.seg-free { background: var(--bg-tertiary); border: 1px solid var(--border); }
 
 .subsystem-grid {
@@ -1076,7 +1082,8 @@ async function loadMemoryHealth() {
         document.getElementById('segWorkspace').style.width = pct(seg.workspaceFiles || 0) + '%';
         document.getElementById('segSSoT').style.width = pct(seg.ssotDocs || 0) + '%';
         document.getElementById('segConvo').style.width = pct(seg.conversation || 0) + '%';
-        // segBlocks removed
+        document.getElementById('segHeaders').style.width = pct(seg.memoryHeaders || 0) + '%';
+        document.getElementById('segLCM').style.width = pct(seg.lcmSummaries || 0) + '%';
 
         // Threshold markers (positioned as % of max)
         // markerCompress removed
@@ -1103,7 +1110,8 @@ async function loadMemoryHealth() {
             ssotListEl.style.display = 'none';
         }
         document.getElementById('legendConvo').textContent = k(seg.conversation || 0);
-        // legendBlocks removed
+        document.getElementById('legendHeaders').textContent = k(seg.memoryHeaders || 0);
+        document.getElementById('legendLCM').textContent = k(seg.lcmSummaries || 0);
         document.getElementById('legendFree').textContent = k(Math.max(0, max - actual));
 
         // Subsystem status lights

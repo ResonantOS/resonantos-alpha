@@ -6108,8 +6108,45 @@ def api_memory_health():
         except Exception:
             pass
 
-    # Conversation = actual total - fixed segments - compressed blocks
-    conversation_tokens = max(0, actual_total - system_prompt_tokens - workspace_tokens - ssot_tokens - blocks_comp)
+    # Memory headers token estimate
+    headers_tokens = 0
+    header_files = []
+    try:
+        import glob
+        header_files = glob.glob(os.path.expanduser("~/.openclaw/workspace/memory/headers/*.header.md"))
+        for hf in header_files:
+            try:
+                with open(hf, "r") as f:
+                    content = f.read()
+                headers_tokens += len(content) // 4
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # LCM summary tokens
+    lcm_summary_tokens = 0
+    try:
+        import sqlite3 as _sql
+        _lcm_db = os.path.expanduser("~/.openclaw/lcm.db")
+        if os.path.exists(_lcm_db):
+            _conn = _sql.connect(_lcm_db)
+            _cur = _conn.cursor()
+            _cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='context_items'")
+            if _cur.fetchone():
+                _cur.execute("SELECT conversation_id FROM context_items ORDER BY ordinal DESC LIMIT 1")
+                _row = _cur.fetchone()
+                if _row:
+                    _conv_id = _row[0]
+                    _cur.execute("SELECT COALESCE(SUM(s.token_count),0) FROM context_items ci JOIN summaries s ON ci.summary_id=s.summary_id WHERE ci.conversation_id=? AND ci.item_type='summary'", (_conv_id,))
+                    _trow = _cur.fetchone()
+                    lcm_summary_tokens = _trow[0] if _trow else 0
+            _conn.close()
+    except Exception:
+        pass
+
+    # Conversation = actual total - fixed segments - memory headers - LCM summaries
+    conversation_tokens = max(0, actual_total - system_prompt_tokens - workspace_tokens - ssot_tokens - headers_tokens - lcm_summary_tokens)
 
     # --- Build result ---
     result = {
@@ -6121,13 +6158,14 @@ def api_memory_health():
             "lastOutputTokens": gw_session.get("outputTokens", 0) if gw_session else 0,
             "injectedSSoTs": ssot_count,
             "injectedSSoTDocs": ssot_injected_docs,
-            "injectedBlocks": blocks_count,
+            "injectedHeaders": len(header_files) if header_files else 0,
             "segments": {
                 "systemPrompt": system_prompt_tokens,
                 "workspaceFiles": workspace_tokens,
                 "ssotDocs": ssot_tokens,
                 "conversation": conversation_tokens,
-                "compressedBlocks": blocks_comp,
+                "memoryHeaders": headers_tokens,
+                "lcmSummaries": lcm_summary_tokens,
             },
             "status": "ok",
         },
@@ -7578,4 +7616,3 @@ def memory_bridge_config_post():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
