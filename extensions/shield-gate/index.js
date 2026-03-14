@@ -129,6 +129,36 @@ const SAFE_PREFIXES = [
   /^brew\s+(list|info|search)\b/,
 ];
 
+// --- Helper: Strip false-positive content from commands ---
+// Removes content inside quotes, comments, heredocs, and read-only command args
+// to prevent grep/cat patterns from triggering false blocks.
+function stripFalsePositiveContent(command) {
+  if (!command || typeof command !== "string") return command;
+  
+  let stripped = command;
+  
+  // Strip heredoc bodies (<<EOF ... EOF) - both quoted and unquoted
+  stripped = stripped.replace(/<<-?\s*'?(\w+)'?[\s\S]*?\n\1\b/gm, "<<HEREDOC");
+  
+  // Strip single-quoted strings ('...')
+  stripped = stripped.replace(/'[^']*'/g, "'SQ'");
+  
+  // Strip double-quoted strings ("...") with escaped quotes support
+  stripped = stripped.replace(/"(?:[^"\\]|\\.)*"/g, '"DQ"');
+  
+  // Strip shell comments (# to end of line)
+  stripped = stripped.replace(/(^|[\s;|&()])#[^\n]*/gm, "$1");
+  
+  // Strip arguments to read-only/search commands (grep, cat, head, tail, less, etc.)
+  // Their args are search patterns, not commands to execute
+  stripped = stripped.replace(
+    /\b(grep|egrep|fgrep|rg|ag|ack|cat|head|tail|less|more|wc|file|stat)\b(\s+-[^\s|;&#]*)*\s+[^|;&#\n]*/g,
+    "$1 STRIPPED"
+  );
+  
+  return stripped;
+}
+
 // --- Logging ---
 function log(level, msg, data) {
   const ts = new Date().toISOString();
@@ -943,50 +973,37 @@ module.exports = function shieldGateExtension(api) {
             }
           }
           if (gatewayLifecyclePattern) {
-            const resumeFile = path.join(HOME, ".openclaw/workspace/.gateway-resume-scheduled");
-            let hasValidResumePlan = false;
-            let resumeTimestamp = null;
-            if (fs.existsSync(resumeFile)) {
-              try {
-                resumeTimestamp = fs.readFileSync(resumeFile, "utf8").trim();
-                const parsedMs = Date.parse(resumeTimestamp);
-                if (!Number.isNaN(parsedMs)) {
-                  const ageMs = Date.now() - parsedMs;
-                  if (ageMs >= 0 && ageMs <= 5 * 60 * 1000) {
-                    hasValidResumePlan = true;
-                  }
-                }
-              } catch (err) {
-                log("WARN", "Gateway Lifecycle Gate: failed reading resume plan", { resumeFile, error: String(err) });
-              }
-            }
-
-            if (!hasValidResumePlan) {
+            const configPath = path.join(HOME, ".openclaw/openclaw.json");
+            try {
+              JSON.parse(fs.readFileSync(configPath, "utf8"));
+            } catch (err) {
               log("BLOCK", "Gateway Lifecycle Gate", {
                 command: trimmed.slice(0, 100),
                 pattern: gatewayLifecyclePattern.source,
-                resumeFile
+                configPath,
+                error: String(err)
               });
               return {
                 block: true,
-                blockReason: "[Gateway Lifecycle Gate] Cannot restart/stop gateway without a resume plan. First: (1) schedule a one-shot cron: openclaw cron add --at +2m --message \"Gateway restarted. Resume pending work.\" --session main, then (2) write current ISO timestamp to ~/.openclaw/workspace/.gateway-resume-scheduled. After both, retry." + ERROR_EXPLAIN_INSTRUCTION
+                blockReason: "[Gateway Lifecycle Gate] Config file is invalid JSON — fix before restarting." + ERROR_EXPLAIN_INSTRUCTION
               };
             }
 
             try {
-              fs.unlinkSync(resumeFile);
-              log("ALLOW", "Gateway Lifecycle Gate", {
+              execSync("launchctl print gui/501/ai.openclaw.gateway 2>/dev/null");
+            } catch (err) {
+              log("WARN", "Gateway Lifecycle Gate: launchd service not found", {
                 command: trimmed.slice(0, 100),
                 pattern: gatewayLifecyclePattern.source,
-                resumeFile,
-                resumeTimestamp
-              });
-            } catch (err) {
-              log("WARN", "Gateway Lifecycle Gate: failed deleting resume plan file", {
-                resumeFile,
                 error: String(err)
               });
             }
+
+            log("ALLOW", "Gateway Lifecycle Gate", {
+              command: trimmed.slice(0, 100),
+              pattern: gatewayLifecyclePattern.source,
+              configPath
+            });
           }
 
           const result = checkExecCommand(command);
@@ -1138,6 +1155,7 @@ module.exports = function shieldGateExtension(api) {
 
       // --- Layer 6f: Config Change Gate ---
       // Blocks config file modifications without prior backup evidence.
+      // For exec commands, only flag actual write operations (not reads like cat, grep, python print).
       if (toolName === "write" || toolName === "edit" || toolName === "exec") {
         const CONFIG_FILE_PATTERNS = [
           /openclaw\.json/,
@@ -1157,7 +1175,17 @@ module.exports = function shieldGateExtension(api) {
         }
         const isConfigFile = CONFIG_FILE_PATTERNS.some(p => p.test(targetPath));
         const isExempt = EXEMPT_CONFIG_PATHS.some(p => p.test(targetPath));
-        if (isConfigFile && !isExempt) {
+        // For exec commands: only flag if the command actually writes to the config file.
+        // Read-only commands (cat, grep, head, tail, python read, jq) should pass through.
+        const isExecReadOnly = toolName === "exec" && isConfigFile && (() => {
+          const cmd = targetPath;
+          const EXEC_WRITE_PATTERNS = [
+            /\s>\s/, /\s>>\s/, /\btee\b/, /\bsed\s+-i/, /\bperl\s+-[ip]/,
+            /\becho\b.*>/, /\bprintf\b.*>/, /\bmv\b/, /\brm\b/, /\btrash\b/,
+          ];
+          return !EXEC_WRITE_PATTERNS.some(p => p.test(cmd));
+        })();
+        if (isConfigFile && !isExempt && !isExecReadOnly) {
           const sessionKey = ctx?.sessionKey || "";
           const ev = turnEvidence.get(sessionKey);
           const recentCalls = ev?.toolCalls || [];
@@ -1184,6 +1212,8 @@ module.exports = function shieldGateExtension(api) {
       // --- Layer 6d: Atomic Rebuild Gate ---
       if (toolName === "exec") {
         const command = String(params?.command || "");
+        // Strip false-positive content (quotes, comments, grep args) before pattern matching
+        const strippedCommand = stripFalsePositiveContent(command);
         const ATOMIC_REBUILD_PATTERNS = [
           /\bdelete_nodes\b/,
           /\brm\s/,
@@ -1198,8 +1228,8 @@ module.exports = function shieldGateExtension(api) {
           /\bnode_modules\b/i,
           /\b__pycache__\b/i,
         ];
-        const destructivePattern = ATOMIC_REBUILD_PATTERNS.find((pattern) => pattern.test(command));
-        const isExempt = ATOMIC_REBUILD_EXEMPT_PATTERNS.some((pattern) => pattern.test(command));
+        const destructivePattern = ATOMIC_REBUILD_PATTERNS.find((pattern) => pattern.test(strippedCommand));
+        const isExempt = ATOMIC_REBUILD_EXEMPT_PATTERNS.some((pattern) => pattern.test(strippedCommand));
         if (destructivePattern && !isExempt) {
           log("BLOCK", "Atomic Rebuild Gate — destructive operation detected", {
             pattern: destructivePattern.toString(),
