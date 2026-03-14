@@ -1,0 +1,17 @@
+{
+  "rag_agents": [
+    "main"
+  ],
+  "server": {
+    "enabled": true
+  },
+  "sources": {
+    "memory_logs": true,
+    "research": true,
+    "ssot_l0": true,
+    "ssot_l1": true,
+    "ssot_l2": true,
+    "ssot_l3": false,
+    "ssot_l4": false
+  }
+}

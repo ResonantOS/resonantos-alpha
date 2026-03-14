@@ -1,0 +1,13 @@
+{
+  "name": "resonantos-mcp-server",
+  "version": "0.1.0",
+  "description": "ResonantOS MCP Server — expose knowledge to external AIs",
+  "type": "module",
+  "bin": { "resonantos-mcp": "./src/index.js" },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}

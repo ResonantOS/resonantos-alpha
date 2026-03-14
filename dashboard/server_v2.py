@@ -7549,3 +7549,33 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+@app.route("/memory-bridge")
+def memory_bridge_page():
+    import os
+    mcp_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mcp-server", "src", "index.js"))
+    return render_template("settings.html", active_page="settings", memory_bridge_active=True, mcp_server_path=mcp_path)
+
+@app.route("/api/memory-bridge/config", methods=["GET"])
+def memory_bridge_config_get():
+    import json, os
+    config_path = os.path.join(os.path.dirname(__file__), "..", "mcp-server", "mcp-config.json")
+    try:
+        with open(config_path) as f:
+            return jsonify(json.load(f))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/memory-bridge/config", methods=["POST"])
+def memory_bridge_config_post():
+    import json, os
+    config_path = os.path.join(os.path.dirname(__file__), "..", "mcp-server", "mcp-config.json")
+    try:
+        data = request.get_json()
+        with open(config_path, "w") as f:
+            json.dump(data, f, indent=2)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
