@@ -16,9 +16,11 @@ const fs = require("fs");
 const path = require("path");
 
 // --- Configuration ---
+const HOME = process.env.HOME || "/Users/augmentor";
 const LOGICIAN_SOCK = process.env.LOGICIAN_SOCK || "/tmp/mangle.sock";
 const PROTO_PATH = path.join(process.env.HOME, "resonantos-augmentor/logician/poc/mangle-service/proto/mangle.proto");
 const LOG_FILE = path.join(process.env.HOME, "resonantos-augmentor/shield/logs/shield-gate.log");
+const ERROR_EXPLAIN_INSTRUCTION = "\n\n⚠️ MANDATORY: Explain this block to the user briefly. What was blocked and what you are doing instead. Never leave a block message unexplained.";
 
 // --- Logician gRPC Client (native Node.js, no grpcurl) ---
 let logicianClient = null;
@@ -93,12 +95,19 @@ const DESTRUCTIVE_PATTERNS = [
   /\breboot\b/,                                                // reboot
 ];
 
+const GATEWAY_STOP_PATTERNS = [
+  /openclaw\s+gateway\s+(restart|stop)/,
+  /pkill.*openclaw/,
+  /launchctl\s+unload.*openclaw/
+];
+
 // --- Protected File Patterns ---
 // Matches protected_path() facts in production_rules.mg
 const PROTECTED_PATHS = [
   /\.openclaw\/openclaw\.json/,
   /\.config\/solana\/id\.json/,
   /auth-profiles\.json/,
+  /\.ssh\//,
   /\/\.env\b/,
   /ssot\/private\//,
 ];
@@ -113,12 +122,42 @@ const SAFE_PREFIXES = [
   /^curl\s/,
   /^test\b/, /^\[\s/,
   /^wc\b/, /^sort\b/, /^uniq\b/, /^awk\b/,
-  /^mkdir\b/, /^touch\b/, /^cp\b/,
+  /^mkdir\b/, /^touch\b/,
   /^cd\b/, /^source\b/,
   /^solana\s+(config|balance|address|account)\b/,
   /^go\s+(version|env)\b/,
   /^brew\s+(list|info|search)\b/,
 ];
+
+// --- Helper: Strip false-positive content from commands ---
+// Removes content inside quotes, comments, heredocs, and read-only command args
+// to prevent grep/cat patterns from triggering false blocks.
+function stripFalsePositiveContent(command) {
+  if (!command || typeof command !== "string") return command;
+  
+  let stripped = command;
+  
+  // Strip heredoc bodies (<<EOF ... EOF) - both quoted and unquoted
+  stripped = stripped.replace(/<<-?\s*'?(\w+)'?[\s\S]*?\n\1\b/gm, "<<HEREDOC");
+  
+  // Strip single-quoted strings ('...')
+  stripped = stripped.replace(/'[^']*'/g, "'SQ'");
+  
+  // Strip double-quoted strings ("...") with escaped quotes support
+  stripped = stripped.replace(/"(?:[^"\\]|\\.)*"/g, '"DQ"');
+  
+  // Strip shell comments (# to end of line)
+  stripped = stripped.replace(/(^|[\s;|&()])#[^\n]*/gm, "$1");
+  
+  // Strip arguments to read-only/search commands (grep, cat, head, tail, less, etc.)
+  // Their args are search patterns, not commands to execute
+  stripped = stripped.replace(
+    /\b(grep|egrep|fgrep|rg|ag|ack|cat|head|tail|less|more|wc|file|stat)\b(\s+-[^\s|;&#]*)*\s+[^|;&#\n]*/g,
+    "$1 STRIPPED"
+  );
+  
+  return stripped;
+}
 
 // --- Logging ---
 function log(level, msg, data) {
@@ -204,14 +243,14 @@ function checkExecCommand(command) {
     if (isSafe) {
       // Even safe commands: block if they reference protected paths AND contain write indicators
       // This catches: python3 -c "json.dump(..., open('openclaw.json','w'))"
-      const hasWriteIndicator = /\bopen\s*\([^)]*['\"]w['\"]|write|dump.*open|(?<![&\d])>{1,2}(?!&)|\.write\s*\(|fs\.writeFile/i.test(trimmed);
+      const hasWriteIndicator = /\bopen\s*\([^)]*['\"]w['\"]|write|dump.*open|>|>>|\.write\s*\(|fs\.writeFile/i.test(trimmed);
       if (hasWriteIndicator) {
         for (const protPath of PROTECTED_PATHS) {
           if (protPath.test(trimmed) || protPath.test(expanded)) {
             log("BLOCK", "Safe-prefix command writes to protected path", { command: trimmed.slice(0, 150), path: protPath.source });
             return {
               block: true,
-              blockReason: `🛡️ Shield Gate: Even safe commands cannot write to protected paths (${protPath.source}). Use gateway config.patch for config changes.`
+              blockReason: `🛡️ Shield Gate: Even safe commands cannot write to protected paths (${protPath.source}). Use gateway config.patch for config changes.` + ERROR_EXPLAIN_INSTRUCTION
             };
           }
         }
@@ -222,22 +261,46 @@ function checkExecCommand(command) {
 
   // Check for destructive patterns
   // Strip content that shouldn't trigger pattern matching:
-  // 1. Heredoc bodies (<<EOF ... EOF)
-  // 2. Shell comments (# ...)
-  // 3. Single-quoted strings ('...')
-  // 4. Double-quoted strings ("...")
-  // This prevents false positives on grep "killall", # rm -rf, etc.
+  // 1. Heredoc bodies (<<EOF ... EOF) - both quoted and unquoted delimiters
+  // 2. Single-quoted strings ('...') - including escaped quotes
+  // 3. Double-quoted strings ("...") - including escaped quotes  
+  // 4. Shell comments (# ...) - anywhere in the command
+  // This prevents false positives on grep "killall", # rm -rf, cat "file-with-rm.txt", etc.
   let cmdForPatterns = trimmed;
-  cmdForPatterns = cmdForPatterns.replace(/<<\s*'?(\w+)'?[\s\S]*?\n\1\b/g, "<<HEREDOC_STRIPPED");
-  cmdForPatterns = cmdForPatterns.replace(/#[^\n]*/g, "");
+  
+  // Order matters: heredocs first, then quotes (so # inside strings isn't
+  // mistaken for a comment), then comments last.
+  
+  // Strip heredoc bodies (handles both <<EOF and <<'EOF' styles)
+  cmdForPatterns = cmdForPatterns.replace(/<<-?\s*'?(\w+)'?[\s\S]*?\n\1\b/gm, "<<HEREDOC_STRIPPED");
+  
+  // Strip single-quoted strings (bash doesn't interpret escapes in single quotes, so simple is fine)
   cmdForPatterns = cmdForPatterns.replace(/'[^']*'/g, "'STRIPPED'");
-  cmdForPatterns = cmdForPatterns.replace(/"[^"]*"/g, '"STRIPPED"');
+  
+  // Strip double-quoted strings (handle escaped quotes: \")
+  // Use a more robust regex that handles \" inside strings
+  cmdForPatterns = cmdForPatterns.replace(/"(?:[^"\\]|\\.)*"/g, '"STRIPPED"');
+  
+  // Strip shell comments (# to end of line or end of string)
+  // Handles both newline-terminated and end-of-string cases
+  cmdForPatterns = cmdForPatterns.replace(/(^|[\s;|&()])#[^\n]*/gm, "$1");
+  
+  // Strip arguments to read-only/search commands — their args are search patterns,
+  // not commands to execute. Handles: grep killall file, rg "shutdown" src/, etc.
+  // Replaces everything after the command+flags with STRIPPED so pattern words in
+  // grep/ack/rg/ag/cat/head/tail/less/more/wc/file/stat arguments don't trigger blocks.
+  // Preserves pipes so downstream commands are still checked.
+  cmdForPatterns = cmdForPatterns.replace(
+    /\b(grep|egrep|fgrep|rg|ag|ack|cat|head|tail|less|more|wc|file|stat)\b(\s+-[^\s|;&#]*)*\s+[^|;&#\n]*/g,
+    "$1 STRIPPED"
+  );
+  
   for (const pattern of DESTRUCTIVE_PATTERNS) {
     if (pattern.test(cmdForPatterns)) {
       log("BLOCK", "Destructive command intercepted", { command: trimmed.slice(0, 100), pattern: pattern.source });
       return {
         block: true,
-        blockReason: `🛡️ Shield Gate: Destructive command blocked (${pattern.source.slice(0, 40)}). Use 'trash' instead of 'rm -rf', or get human approval.`
+        blockReason: `🛡️ Shield Gate: Destructive command blocked (${pattern.source.slice(0, 40)}). Use 'trash' instead of 'rm -rf', or get human approval.` + ERROR_EXPLAIN_INSTRUCTION
       };
     }
   }
@@ -252,7 +315,35 @@ function checkExecCommand(command) {
         log("BLOCK", "Protected file write intercepted", { command: trimmed.slice(0, 100), path: protPath.source });
         return {
           block: true,
-          blockReason: `🛡️ Shield Gate: Write to protected path blocked (${protPath.source}). This file requires human approval to modify.`
+          blockReason: `🛡️ Shield Gate: Write to protected path blocked (${protPath.source}). This file requires human approval to modify.` + ERROR_EXPLAIN_INSTRUCTION
+        };
+      }
+    }
+  }
+
+  // Block cp/mv into code files unless destination path is explicitly exempt.
+  const cpMvMatch = trimmed.match(/\b(cp|mv)\s+(?:-[^\s]*\s+)*(\S+)\s+(\S+)/);
+  if (cpMvMatch) {
+    const dest = cpMvMatch[3];
+    const expandedDest = dest.replace(/^~(?=\/|$)/, process.env.HOME || "/Users/augmentor");
+
+    if (CODE_EXTENSIONS.test(expandedDest)) {
+      let isExempt = false;
+      for (const exempt of CODING_GATE_EXEMPT_PATHS) {
+        if (exempt.test(dest) || exempt.test(expandedDest)) {
+          isExempt = true;
+          break;
+        }
+      }
+
+      if (!isExempt) {
+        log("BLOCK", "Direct Coding Gate blocked cp/mv to code file", {
+          command: trimmed.slice(0, 100),
+          dest: expandedDest
+        });
+        return {
+          block: true,
+          blockReason: `[Direct Coding Gate] Blocked cp/mv to code file "${dest.split("/").pop()}". Writing code files must go through Codex delegation, not cp/mv from temp files.` + ERROR_EXPLAIN_INSTRUCTION
         };
       }
     }
@@ -442,12 +533,24 @@ function checkDelegation(command, execWorkdir) {
   if (!delegationGate) {
     return {
       block: true,
-      blockReason: "🛡️ Delegation Gate: Cannot load delegation-gate.js module. Fix the module before delegating to Codex."
+      blockReason: "🛡️ Delegation Gate: Cannot load delegation-gate.js module. Fix the module before delegating to Codex." + ERROR_EXPLAIN_INSTRUCTION
     };
   }
 
   if (!delegationGate.isCodexExec(command)) {
     return { block: false };
+  }
+
+  // --- Layer 1.5 Enhancement: Query Logician for delegation rules ---
+  // Check if this agent/task is allowed to delegate per Logician rules
+  const delegator = "main"; // Assuming main orchestrator
+  const taskType = delegationGate.inferTaskType ? delegationGate.inferTaskType(command) : "unknown";
+  if (taskType !== "unknown") {
+    const logicianResult = queryLogician(`must_delegate_to(${delegator}, ${taskType}, Target).`);
+    if (logicianResult && logicianResult.length > 0) {
+      log("INFO", `Delegation Gate: Logician confirms delegation allowed for task type ${taskType}`);
+    }
+    // Note: If Logician query fails or returns nothing, we don't block - delegation-gate.js does the actual validation
   }
 
   const workDir = delegationGate.resolveWorkDir(command, execWorkdir);
@@ -515,7 +618,7 @@ function checkDirectCoding(toolName, params) {
 
   return {
     block: true,
-    blockReason: `[Direct Coding Gate] Blocked writing ${content.length} chars to code file "${filePath.split("/").pop()}". This is by design — edits over ${CODING_GATE_MAX_CHARS} chars must go through Codex delegation. The AI will use an alternative method (exec/sed or Codex). No action needed from you.`
+    blockReason: `[Direct Coding Gate] Blocked writing ${content.length} chars to code file "${filePath.split("/").pop()}". This is by design — edits over ${CODING_GATE_MAX_CHARS} chars must go through Codex delegation. The AI will use an alternative method (exec/sed or Codex). No action needed from you.` + ERROR_EXPLAIN_INSTRUCTION
   };
 }
 
@@ -596,6 +699,13 @@ function checkExecCodeWrite(command) {
     if (blocked) return blocked;
   }
 
+  // 7) Generic redirect > code_file (catch-all for pipes like `cmd | cmd2 > file.py`)
+  const genericRedirect = trimmed.match(/(?:>|>>)\s*(['"]?[^'"`\s|;&]+['"]?)\s*$/i);
+  if (genericRedirect) {
+    const blocked = checkTarget(genericRedirect[1]);
+    if (blocked) return blocked;
+  }
+
   return { block: false };
 }
 
@@ -603,6 +713,8 @@ function checkExecCodeWrite(command) {
 const COMPACTION_STATE_FILE = "/tmp/openclaw_compaction_recovery.json";
 const COMPACTION_RECOVERY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes max
 const RECOVERY_REQUIRED_FILES = ["WORKFLOW_AUTO.md", /memory\/\d{4}-\d{2}-\d{2}\.md/];
+const MEMORY_HEARTBEAT_STATE_FILE = path.join(HOME, ".openclaw/workspace/memory/heartbeat-state.json");
+const MEMORY_BREADCRUMBS_FILE = path.join(HOME, ".openclaw/workspace/memory/breadcrumbs.jsonl");
 
 function getCompactionState() {
   try {
@@ -625,24 +737,83 @@ function clearCompactionState() {
   try { if (fs.existsSync(COMPACTION_STATE_FILE)) fs.unlinkSync(COMPACTION_STATE_FILE); } catch (_) {}
 }
 
+function getRomeHour() {
+  const hour = new Date().toLocaleString("en-US", {
+    timeZone: "Europe/Rome",
+    hour: "numeric",
+    hour12: false
+  });
+  return parseInt(hour, 10);
+}
+
+function formatHoursAgo(hoursAgo) {
+  const rounded = Math.round(hoursAgo * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(/\.0$/, "");
+}
+
+function checkMemoryLogGate(content) {
+  const trimmed = String(content || "").trim();
+  if (!trimmed.startsWith("HEARTBEAT_OK")) {
+    return { block: false };
+  }
+
+  try {
+    const heartbeatState = JSON.parse(fs.readFileSync(MEMORY_HEARTBEAT_STATE_FILE, "utf8"));
+    const breadcrumbsRaw = fs.readFileSync(MEMORY_BREADCRUMBS_FILE, "utf8");
+    const breadcrumbCount = breadcrumbsRaw
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .length;
+
+    if (breadcrumbCount < 3) {
+      return { block: false };
+    }
+
+    const lastMemoryLog = Date.parse(heartbeatState?.lastMemoryLog || "");
+    if (Number.isNaN(lastMemoryLog)) {
+      return { block: false };
+    }
+
+    const hoursAgo = (Date.now() - lastMemoryLog) / (60 * 60 * 1000);
+    if (hoursAgo <= 2) {
+      return { block: false };
+    }
+
+    const romeHour = getRomeHour();
+    if (Number.isNaN(romeHour) || romeHour < 8 || romeHour > 23) {
+      return { block: false };
+    }
+
+    const hoursAgoText = formatHoursAgo(hoursAgo);
+    return {
+      block: true,
+      blockReason: `[Memory Log Gate] Breadcrumbs accumulated (${breadcrumbCount} entries) and last memory log was ${hoursAgoText}h ago. Write a memory log to memory/shared-log/ before dismissing heartbeat.`
+    };
+  } catch (_) {
+    return { block: false };
+  }
+}
+
 // --- Extension Entry ---
 module.exports = function shieldGateExtension(api) {
   log("INFO", "Shield Gate extension loaded" + (delegationGate ? " (delegation gate active)" : " (delegation gate NOT loaded)"));
 
   // --- Verification Claim Gate: Turn-level tool tracking ---
-  // Tracks exec/test calls per session-turn so message_sending can check
-  // whether "fixed"/"verified" claims have evidence.
-  const turnEvidence = new Map(); // sessionKey → { execCalls: [{cmd, ts}], readFiles: Set, lastReset: ts }
+  // Tracks recent calls per session-turn so message_sending can check
+  // whether claims have evidence.
+  const turnEvidence = new Map(); // sessionKey → { execCalls: [{cmd, ts}], toolCalls: [{toolName, command, ts}], readFiles: Set, lastReset: ts }
   const TURN_EVIDENCE_TTL_MS = 10 * 60 * 1000; // 10 min — evidence window per turn
+  const MAX_VERIFICATION_TOOL_CALLS = 20;
 
   function getTurnEvidence(sessionKey) {
     if (!sessionKey) return null;
     let ev = turnEvidence.get(sessionKey);
     const now = Date.now();
     if (!ev || (now - ev.lastReset) > TURN_EVIDENCE_TTL_MS) {
-      ev = { execCalls: [], readFiles: new Set(), lastReset: now };
+      ev = { execCalls: [], toolCalls: [], readFiles: new Set(), lastReset: now };
       turnEvidence.set(sessionKey, ev);
     }
+    if (!Array.isArray(ev.toolCalls)) ev.toolCalls = [];
     return ev;
   }
 
@@ -679,6 +850,19 @@ module.exports = function shieldGateExtension(api) {
     return ev.execCalls.length > 0;
   }
 
+  function recordToolCall(sessionKey, toolName, params) {
+    const ev = getTurnEvidence(sessionKey);
+    if (!ev || !toolName) return;
+    const entry = { toolName, ts: Date.now() };
+    if (toolName === "exec") {
+      entry.command = String(params?.command || "").slice(0, 300);
+    }
+    ev.toolCalls.push(entry);
+    if (ev.toolCalls.length > MAX_VERIFICATION_TOOL_CALLS) {
+      ev.toolCalls = ev.toolCalls.slice(-MAX_VERIFICATION_TOOL_CALLS);
+    }
+  }
+
   // Verification claim trigger words (case-insensitive)
   const VERIFICATION_CLAIM_PATTERNS = [
     /\bfixed\b/i,
@@ -686,6 +870,9 @@ module.exports = function shieldGateExtension(api) {
     /\bits?\s+(?:is\s+)?fixed\b/i,
     /\bbug\s+(?:is\s+)?(?:fixed|resolved|squashed)\b/i,
     /\bpushed.*(?:fix|patch)\b/i,
+    /\bdone\b/i,
+    /\bsorted\b/i,
+    /\bcomplete[d]?\b/i,
   ];
 
   // Patterns that indicate the message is NOT a verification claim
@@ -718,10 +905,77 @@ module.exports = function shieldGateExtension(api) {
     return false;
   }
 
+  // State claims (counts/version/status) from verification-gate.js
+  const STATE_CLAIM_PATTERNS = [
+    /\b(\d+)\s+(agents?|skills?|sessions?|cron\s+jobs?|plugins?|routes?|stores?|files?)\b/i,
+    /\b(running|active|enabled|disabled|installed)\b.*\b(agents?|services?|plugins?)\b/i,
+    /\bport\s+\d+\b/i,
+    /\b(version|v)\s*\d+\.\d+/i,
+  ];
+
+  // Verification commands from verification-gate.js
+  const VERIFICATION_COMMANDS = [
+    /openclaw\s+(status|agents|skills|plugins|cron|memory)/,
+    /ps\s+aux/,
+    /grep.*server_v2\.py/,
+    /ls.*\.sqlite/,
+    /cat.*openclaw\.json/,
+    /find.*\.md.*wc/,
+    /openclaw\s+doctor/,
+  ];
+
+  function containsStateClaim(text) {
+    if (!text || typeof text !== "string") return false;
+    for (const pattern of STATE_CLAIM_PATTERNS) {
+      if (pattern.test(text)) return pattern.toString();
+    }
+    return false;
+  }
+
+  function hasRecentVerificationCommand(sessionKey) {
+    const ev = getTurnEvidence(sessionKey);
+    if (!ev) return false;
+    const recent = ev.toolCalls.slice(-MAX_VERIFICATION_TOOL_CALLS);
+    return recent.some((call) => {
+      if (call.toolName !== "exec") return false;
+      const command = call.command || "";
+      return VERIFICATION_COMMANDS.some((pattern) => pattern.test(command));
+    });
+  }
+
+  const BEHAVIORAL_OVERCLAIM_PATTERN = /\b(I\s+always|I\s+never|I\s+constantly|every\s+single\s+time|without\s+exception|100%\s+of\s+the\s+time)\b/i;
+  const BEHAVIORAL_SELF_ASSESSMENT_PATTERN = /\bI\b[\s\S]*\b(check|verify|ensure|do|run|test)\b/i;
+
+  function stripQuotedAndCodeBlocks(text) {
+    if (!text || typeof text !== "string") return "";
+    const noCode = text.replace(/```[\s\S]*?```/g, " ");
+    return noCode
+      .split("\n")
+      .filter((line) => !line.trim().startsWith(">"))
+      .join("\n");
+  }
+
+  function containsBehavioralOverclaim(text) {
+    const sanitized = stripQuotedAndCodeBlocks(text);
+    if (!sanitized) return false;
+    const sentences = sanitized.split(/[.!?]\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+    for (const sentence of sentences) {
+      if (!BEHAVIORAL_OVERCLAIM_PATTERN.test(sentence)) continue;
+      if (!BEHAVIORAL_SELF_ASSESSMENT_PATTERN.test(sentence)) continue;
+      return {
+        pattern: BEHAVIORAL_OVERCLAIM_PATTERN.toString(),
+        preview: sentence.slice(0, 120)
+      };
+    }
+    return false;
+  }
+
   api.on("before_tool_call", (event, ctx) => {
     try {
       log("DEBUG", "before_tool_call fired", { tool: event?.toolName, agentId: ctx?.agentId, sessionKey: ctx?.sessionKey?.slice(0, 30) });
       const { toolName, params } = event;
+      recordToolCall(ctx?.sessionKey, toolName, params);
+      let advisoryWarning = null;
 
       // --- Layer 8: Post-Compaction Recovery Gate ---
       // After compaction, force reading context files before any other action.
@@ -752,7 +1006,7 @@ module.exports = function shieldGateExtension(api) {
           if (!compState.readWorkflow) missing.push("WORKFLOW_AUTO.md");
           if (!compState.readMemory) missing.push("memory/YYYY-MM-DD.md (today)");
           log("BLOCK", "Post-Compaction Recovery Gate", { tool: toolName, missing });
-          return { block: true, blockReason: `[Post-Compaction Recovery] AI context was reset (compaction). It must re-read its configuration files before acting. This is automatic — no action needed from you.` };
+          return { block: true, blockReason: `[Post-Compaction Recovery] AI context was reset (compaction). It must re-read its configuration files before acting. This is automatic — no action needed from you.` + ERROR_EXPLAIN_INSTRUCTION };
         }
       }
 
@@ -766,16 +1020,55 @@ module.exports = function shieldGateExtension(api) {
       if (toolName === "exec") {
         const command = params?.command;
         if (command) {
+          // --- Gateway Lifecycle Gate ---
+          // Only test the actual command line, not heredoc/string content
+          const trimmed = command.trim();
+          const cmdOnly = trimmed.split(/\n/)[0].split(/<<[\s'"]*\w+/)[0].trim();
+          let gatewayLifecyclePattern = null;
+          for (const pattern of GATEWAY_STOP_PATTERNS) {
+            if (pattern.test(cmdOnly)) {
+              gatewayLifecyclePattern = pattern;
+              break;
+            }
+          }
+          if (gatewayLifecyclePattern) {
+            const configPath = path.join(HOME, ".openclaw/openclaw.json");
+            try {
+              JSON.parse(fs.readFileSync(configPath, "utf8"));
+            } catch (err) {
+              log("BLOCK", "Gateway Lifecycle Gate", {
+                command: trimmed.slice(0, 100),
+                pattern: gatewayLifecyclePattern.source,
+                configPath,
+                error: String(err)
+              });
+              return {
+                block: true,
+                blockReason: "[Gateway Lifecycle Gate] Config file is invalid JSON — fix before restarting." + ERROR_EXPLAIN_INSTRUCTION
+              };
+            }
+
+            try {
+              execSync("launchctl print gui/501/ai.openclaw.gateway 2>/dev/null");
+            } catch (err) {
+              log("WARN", "Gateway Lifecycle Gate: launchd service not found", {
+                command: trimmed.slice(0, 100),
+                pattern: gatewayLifecyclePattern.source,
+                error: String(err)
+              });
+            }
+
+            log("ALLOW", "Gateway Lifecycle Gate", {
+              command: trimmed.slice(0, 100),
+              pattern: gatewayLifecyclePattern.source,
+              configPath
+            });
+          }
+
           const result = checkExecCommand(command);
           if (result.block) {
             log("BLOCK", `Blocked ${toolName}`, { command: command.slice(0, 100), reason: result.blockReason });
             return { block: true, blockReason: result.blockReason };
-          }
-
-          const execCodeResult = checkExecCodeWrite(command);
-          if (execCodeResult.block) {
-            log("BLOCK", "Direct Coding Gate (exec bypass)", { command: command.slice(0, 100) });
-            return { block: true, blockReason: execCodeResult.blockReason };
           }
 
           // --- Layer 1.5: Delegation Gate (codex exec only) ---
@@ -783,6 +1076,12 @@ module.exports = function shieldGateExtension(api) {
           if (delegationResult.block) {
             log("BLOCK", `Delegation Gate blocked ${toolName}`, { command: command.slice(0, 100) });
             return { block: true, blockReason: delegationResult.blockReason };
+          }
+
+          const execCodeWriteResult = checkExecCodeWrite(command);
+          if (execCodeWriteResult.block) {
+            log("BLOCK", "Direct Coding Gate (exec)", { command: command.slice(0, 100) });
+            return { block: true, blockReason: execCodeWriteResult.blockReason };
           }
 
           // --- Verification Claim Gate: record exec evidence ---
@@ -819,11 +1118,11 @@ module.exports = function shieldGateExtension(api) {
         const filePath = params?.file_path || params?.path || "";
         const isMemoryFile = /MEMORY\.md$/i.test(filePath) || /memory\/\d{4}-\d{2}-\d{2}\.md$/i.test(filePath);
         if (isMemoryFile) {
-          const MEMORY_TRUSTED_AGENTS = ["main", "resonant-voice", "content-voice", "researcher"];
+          const MEMORY_TRUSTED_AGENTS = ["main", "resonant-voice", "content-voice", "researcher", "voice"];
           const agentId = ctx?.agentId || "";
           if (!MEMORY_TRUSTED_AGENTS.includes(agentId)) {
             log("BLOCK", "Context Isolation Gate", { tool: toolName, file: filePath.slice(-40), agentId });
-            return { block: true, blockReason: `[Context Isolation Gate] Blocked ${toolName} on "${filePath.split("/").pop()}" — memory files are restricted to trusted agents. Agent "${agentId}" is not in the allowlist. This is a security feature preventing unauthorized memory access.` };
+            return { block: true, blockReason: `[Context Isolation Gate] Blocked ${toolName} on "${filePath.split("/").pop()}" — memory files are restricted to trusted agents. Agent "${agentId}" is not in the allowlist. This is a security feature preventing unauthorized memory access.` + ERROR_EXPLAIN_INSTRUCTION };
           }
         }
       }
@@ -835,7 +1134,7 @@ module.exports = function shieldGateExtension(api) {
         const RESEARCH_KEYWORDS = /\b(compare|analyze|research|investigate|state of the art|technical details|best approach|how does .+ work|architecture of|deep dive|comprehensive|evaluate|assessment)\b/i;
         if (words > 15 && RESEARCH_KEYWORDS.test(query)) {
           log("BLOCK", "Research Discipline Gate", { query: query.slice(0, 80), words });
-          return { block: true, blockReason: `[Research Discipline Gate] Query too complex for basic web_search (${words} words). The AI will delegate this to the researcher agent instead for higher-quality results. No action needed.` };
+          return { block: true, blockReason: `[Research Discipline Gate] Query too complex for basic web_search (${words} words). The AI will delegate this to the researcher agent instead for higher-quality results. No action needed.` + ERROR_EXPLAIN_INSTRUCTION };
         }
       }
 
@@ -858,7 +1157,7 @@ module.exports = function shieldGateExtension(api) {
         for (const pat of EXTERNAL_ACTION_PATTERNS) {
           if (pat.test(cmd)) {
             log("BLOCK", "External Action Gate — exec", { command: cmd.slice(0, 80), pattern: pat.toString() });
-            return { block: true, blockReason: `[External Action Gate] Blocked external action (${cmd.slice(0, 40)}...). This gate prevents the AI from sending emails, tweets, or public posts without your explicit approval. Tell the AI to proceed if you want this action taken.` };
+            return { block: true, blockReason: `[External Action Gate] Blocked external action (${cmd.slice(0, 40)}...). This gate prevents the AI from sending emails, tweets, or public posts without your explicit approval. Tell the AI to proceed if you want this action taken.` + ERROR_EXPLAIN_INSTRUCTION };
           }
         }
       }
@@ -867,7 +1166,164 @@ module.exports = function shieldGateExtension(api) {
         // Allow sending to Manolo's Telegram DM only
         if (target && !["7825655623", "telegram:7825655623"].some(d => target.includes(d))) {
           log("BLOCK", "External Action Gate — message", { target: target.slice(0, 30), action: params?.action });
-          return { block: true, blockReason: `[External Action Gate] Blocked message to "${target}". Only your Telegram DM is auto-allowed. Tell the AI to proceed if you approve sending to this target.` };
+          return { block: true, blockReason: `[External Action Gate] Blocked message to "${target}". Only your Telegram DM is auto-allowed. Tell the AI to proceed if you approve sending to this target.` + ERROR_EXPLAIN_INSTRUCTION };
+        }
+      }
+
+      // --- Layer 6c: State Claim Gate (message tool) ---
+      // Explicit `message` tool sends bypass `message_sending`, so enforce here too.
+      if (toolName === "message" && params?.action === "send") {
+        const content = params?.message || params?.text || "";
+        const stateClaimPattern = containsStateClaim(content);
+        if (stateClaimPattern) {
+          const sessionKey = ctx?.sessionKey || "";
+          const hasRecentVerification = hasRecentVerificationCommand(sessionKey);
+          if (!hasRecentVerification) {
+            log("BLOCK", "State Claim Gate (message tool) — state claim without verification command", {
+              pattern: stateClaimPattern,
+              sessionKey: sessionKey.slice(0, 30),
+              contentPreview: String(content).slice(0, 80)
+            });
+            return {
+              block: true,
+              blockReason: "🛡️ State Claim Gate: System state claim detected in message tool content without a verification command in the last 20 tool calls. Run a verification command first (for example `openclaw status`, `openclaw skills`, `openclaw agents`, `openclaw plugins`) and then report the claim." + ERROR_EXPLAIN_INSTRUCTION
+            };
+          }
+          log("INFO", "State Claim Gate (message tool) — state claim has verification evidence ✅", {
+            pattern: stateClaimPattern,
+            sessionKey: sessionKey.slice(0, 30)
+          });
+        }
+      }
+
+      // --- Layer 6e: Behavioral Integrity Gate (message tool) ---
+      if (toolName === "message" && params?.action === "send") {
+        const content = params?.message || params?.text || "";
+        const overclaim = containsBehavioralOverclaim(content);
+        if (overclaim) {
+          log("BLOCK", "Behavioral Integrity Gate — potential overclaim", {
+            pattern: overclaim.pattern,
+            preview: overclaim.preview
+          });
+          return {
+            block: true,
+            blockReason: "Behavioral Integrity Gate: Overclaim detected. Rephrase with evidence or qualifier."
+          };
+        }
+      }
+
+      // --- Layer 6f: Config Change Gate ---
+      // Blocks config file modifications without prior backup evidence.
+      // For exec commands, only flag actual write operations (not reads like cat, grep, python print).
+      if (toolName === "write" || toolName === "edit" || toolName === "exec") {
+        const CONFIG_FILE_PATTERNS = [
+          /openclaw\.json/,
+          /keywords\.json/,
+          /config\.json/,
+          /\.plist\b/,
+          /launch.*\.json/i,
+        ];
+        const EXEMPT_CONFIG_PATHS = [
+          /\.md$/i, /\.jsonl$/i, /\/memory\//i, /\/tmp\//i, /TASK\.md/i,
+        ];
+        let targetPath = "";
+        if (toolName === "exec") {
+          targetPath = String(params?.command || "");
+        } else {
+          targetPath = String(params?.file_path || params?.path || "");
+        }
+        const isConfigFile = CONFIG_FILE_PATTERNS.some(p => p.test(targetPath));
+        const isExempt = EXEMPT_CONFIG_PATHS.some(p => p.test(targetPath));
+        // For exec commands: only flag if the command actually writes to the config file.
+        // Read-only commands (cat, grep, head, tail, python read, jq) should pass through.
+        const isExecReadOnly = toolName === "exec" && isConfigFile && (() => {
+          const cmd = targetPath;
+          const EXEC_WRITE_PATTERNS = [
+            /\s>\s/, /\s>>\s/, /\btee\b/, /\bsed\s+-i/, /\bperl\s+-[ip]/,
+            /\becho\b.*>/, /\bprintf\b.*>/, /\bmv\b/, /\brm\b/, /\btrash\b/,
+          ];
+          return !EXEC_WRITE_PATTERNS.some(p => p.test(cmd));
+        })();
+        if (isConfigFile && !isExempt && !isExecReadOnly) {
+          const sessionKey = ctx?.sessionKey || "";
+          const ev = turnEvidence.get(sessionKey);
+          const recentCalls = ev?.toolCalls || [];
+          const BACKUP_PATTERNS = [/\bcp\b/, /\brsync\b/, /\.bak\b/, /backup/i, /\bcopy\b/i];
+          const hasBackup = recentCalls.slice(-10).some(call => {
+            const cmd = String(call.command || call.toolName || "");
+            return BACKUP_PATTERNS.some(p => p.test(cmd));
+          });
+          if (!hasBackup) {
+            log("BLOCK", "Config Change Gate — no backup evidence", {
+              targetPath: targetPath.slice(0, 80),
+              sessionKey: sessionKey.slice(0, 30)
+            });
+            return {
+              block: true,
+              blocked: true,
+              blockReason: "🛡️ Config Change Gate: Back up config before modifying. Run: cp <file> <file>.bak" + ERROR_EXPLAIN_INSTRUCTION
+            };
+          }
+          log("INFO", "Config Change Gate — backup evidence found ✅", { targetPath: targetPath.slice(0, 80) });
+        }
+      }
+
+      // --- Layer 6d: Atomic Rebuild Gate ---
+      if (toolName === "exec") {
+        const command = String(params?.command || "");
+        // Strip false-positive content (quotes, comments, grep args) before pattern matching
+        const strippedCommand = stripFalsePositiveContent(command);
+        const ATOMIC_REBUILD_PATTERNS = [
+          /\bdelete_nodes\b/,
+          /\brm\s/,
+          /\btrash\s/,
+          /DROP\s+TABLE/i,
+          /\btruncate\b/i,
+        ];
+        const ATOMIC_REBUILD_EXEMPT_PATTERNS = [
+          /\/tmp\//i,
+          /\.cache\//i,
+          /\.log\b/i,
+          /\bnode_modules\b/i,
+          /\b__pycache__\b/i,
+        ];
+        const destructivePattern = ATOMIC_REBUILD_PATTERNS.find((pattern) => pattern.test(strippedCommand));
+        const isExempt = ATOMIC_REBUILD_EXEMPT_PATTERNS.some((pattern) => pattern.test(strippedCommand));
+        if (destructivePattern && !isExempt) {
+          log("BLOCK", "Atomic Rebuild Gate — destructive operation detected", {
+            pattern: destructivePattern.toString(),
+            commandPreview: command.slice(0, 120)
+          });
+          return {
+            block: true,
+            blocked: true,
+            blockReason: "Atomic Rebuild Gate: Destructive operation detected. Ensure replacement content exists BEFORE deleting. Create → Verify → Delete."
+          };
+        }
+      }
+
+      // --- Layer 6g: Model Selection Hierarchy Gate ---
+      // Blocks expensive model usage for routine tasks without justification.
+      if (toolName === "sessions_spawn" && params?.model) {
+        const model = String(params.model).toLowerCase();
+        const EXPENSIVE_MODELS = [/opus/, /sonnet/, /gpt-4o/, /gpt-5(?!\.3-codex)/];
+        const isExpensive = EXPENSIVE_MODELS.some(p => p.test(model));
+        if (isExpensive) {
+          const task = String(params?.task || params?.message || "").toLowerCase();
+          const COMPLEXITY_KEYWORDS = ["architecture", "reasoning", "complex", "design-level", "strategic", "debate", "audit", "security", "protocol"];
+          const hasJustification = COMPLEXITY_KEYWORDS.some(k => task.includes(k));
+          if (!hasJustification) {
+            log("BLOCK", "Model Selection Hierarchy Gate — expensive model for routine task", {
+              model: model.slice(0, 40),
+              taskPreview: task.slice(0, 80)
+            });
+            return {
+              block: true,
+              blocked: true,
+              blockReason: "🛡️ Model Selection Gate: Expensive model (" + model + ") used for routine task. Use MiniMax or Haiku for non-complex work. Add complexity justification to task description if needed." + ERROR_EXPLAIN_INSTRUCTION
+            };
+          }
+          log("INFO", "Model Selection Gate — expensive model justified ✅", { model: model.slice(0, 40) });
         }
       }
 
@@ -880,21 +1336,10 @@ module.exports = function shieldGateExtension(api) {
           const textToCheck = toolName === "exec"
             ? (params?.command || "")
             : (params?.task || params?.message || "");
-          let skipInjectionScan = false;
-          if (toolName === "exec" && textToCheck.length > 10) {
-            const SAFE_WRITE_TARGETS = ["/memory/", "MEMORY.md", "/ssot/", "/.openclaw/workspace/"];
-            const isWorkspaceWrite = /^(cat\s|tee\s|echo\s)/.test(textToCheck.trim()) &&
-              SAFE_WRITE_TARGETS.some(t => textToCheck.includes(t));
-            if (isWorkspaceWrite) {
-              log("INFO", "Injection scan skipped: workspace file write", { textPreview: textToCheck.slice(0, 80) });
-              skipInjectionScan = true;
-            }
-          }
-
-          if (textToCheck.length > 10 && !skipInjectionScan) {
+          if (textToCheck.length > 10) {
             const lowerText = textToCheck.toLowerCase();
             // Quick local pre-check before hitting gRPC
-            const INJECTION_HINTS = ["ignore previous", "disregard", "jailbreak", "dan mode", "pretend you are", "reveal your"];
+            const INJECTION_HINTS = ["ignore previous", "disregard", "jailbreak", "dan mode", "pretend you are", "system prompt", "reveal your"];
             const maybeInjection = INJECTION_HINTS.some(h => lowerText.includes(h));
             if (maybeInjection) {
               // Confirm with Logician
@@ -906,27 +1351,38 @@ module.exports = function shieldGateExtension(api) {
               const matched = patterns.find(p => lowerText.includes(p));
               if (matched) {
                 log("BLOCK", "Logician Injection Detection", { tool: toolName, pattern: matched, textPreview: textToCheck.slice(0, 60) });
-                return { block: true, blockReason: `[Logician] Injection pattern detected: "${matched}". Blocked for safety.` };
+                return { block: true, blockReason: `[Logician] Injection pattern detected: "${matched}". Blocked for safety.` + ERROR_EXPLAIN_INSTRUCTION };
               }
             }
           }
         }
 
-        // 9b: Tool permission check (log-only mode for now)
+        // 9b: Tool permission check
         const agentId = ctx?.agentId || "main";
         const TOOL_MAP = { exec: "exec", write: "file_write", edit: "file_write", web_search: "brave_api", web_fetch: "web_fetch", browser: "browser", message: "message_send", tts: "tts", sessions_spawn: "sessions_spawn" };
         const logicianTool = TOOL_MAP[toolName];
         if (logicianTool && agentId !== "main") {
           const proves = logicianProves(`can_use_tool(/${agentId}, /${logicianTool})`);
           if (!proves) {
-            log("WARN", "Logician: tool not in permission set (log-only)", { agentId, tool: logicianTool, allowed: false });
-            // TODO: switch to block mode after validation period
-            // return { block: true, blockReason: `[Logician] Agent "${agentId}" not authorized for tool "${logicianTool}".` };
+            log("BLOCK", "Logician: tool not in permission set", { agentId, tool: logicianTool, allowed: false });
+            return { block: true, blocked: true, blockReason: "Trust Level Gate: tool '" + logicianTool + "' not in permission set for agent '" + agentId + "'" };
+          }
+        }
+
+        // 9c: Spawn permission check (sessions_spawn tool)
+        if (toolName === "sessions_spawn") {
+          const targetAgent = params?.agentId || params?.runtime || "unknown";
+          if (targetAgent !== "unknown") {
+            const spawnAllowed = logicianProves(`spawn_allowed(/main, /${targetAgent})`);
+            if (!spawnAllowed) {
+              log("BLOCK", "Logician: spawn not in allowed set", { from: "main", to: targetAgent });
+              return { block: true, blockReason: "Spawn Permission Gate: agent 'main' cannot spawn '" + targetAgent + "'" };
+            }
           }
         }
       }
 
-      return {};
+      return advisoryWarning ? { warning: advisoryWarning } : {};
     } catch (err) {
       // Fail-OPEN: extension errors must never block legitimate work
       log("ERROR", "Shield Gate error — failing open", { error: err.message });
@@ -951,6 +1407,7 @@ module.exports = function shieldGateExtension(api) {
       const content = event?.content || "";
       const to = String(event?.to || "");
       const isSafeDest = SAFE_DESTINATIONS.some(d => to.includes(d));
+      let outboundWarning = null;
 
       // --- Layer 6a: Repo Contamination Gate (skip for Manolo's DM) ---
       if (!isSafeDest) {
@@ -974,16 +1431,16 @@ module.exports = function shieldGateExtension(api) {
         const sessionKey = ctx?.sessionKey || "";
         const hasEvidence = hasTestEvidence(sessionKey);
         if (!hasEvidence) {
-          // WARN mode (not blocking) — inject reminder into the message
-          // Blocking would break flow; warning teaches the habit
-          log("WARN", "Verification Claim Gate — 'fixed' claim without exec evidence", {
+          // HARD BLOCK: Block the message when "fixed" is claimed without exec evidence
+          log("BLOCK", "Verification Claim Gate — 'fixed' claim without exec evidence", {
             pattern: claimPattern,
             sessionKey: sessionKey.slice(0, 30),
             contentPreview: content.slice(0, 80)
           });
-          // Append verification warning to the message
-          const warning = "\n\n⚠️ _Verification Protocol: This message claims a fix but no test was run in this turn. Status should be \"⚠️ Needs Testing\" not \"Fixed\"._";
-          return { content: content + warning };
+          return {
+            block: true,
+            blockReason: "🛡️ Verification Gate: You claimed 'fixed' without running a test. Run a test first, then report results. Do not claim something is fixed without evidence." + ERROR_EXPLAIN_INSTRUCTION
+          };
         } else {
           log("INFO", "Verification Claim Gate — claim has exec evidence ✅", {
             pattern: claimPattern,
@@ -992,7 +1449,150 @@ module.exports = function shieldGateExtension(api) {
         }
       }
 
-      return {};
+      // --- Layer 6c: State Claim Gate (all destinations including DM) ---
+      // If message claims system state counts/status/version, require recent verification command.
+      const stateClaimPattern = containsStateClaim(content);
+      if (stateClaimPattern) {
+        const sessionKey = ctx?.sessionKey || "";
+        const hasRecentVerification = hasRecentVerificationCommand(sessionKey);
+        if (!hasRecentVerification) {
+          log("BLOCK", "State Claim Gate — state claim without verification command", {
+            pattern: stateClaimPattern,
+            sessionKey: sessionKey.slice(0, 30),
+            contentPreview: content.slice(0, 80)
+          });
+          return {
+            block: true,
+            blockReason: "🛡️ State Claim Gate: System state claim detected without a verification command in the last 20 tool calls. Run a verification command first (for example `openclaw status`, `openclaw skills`, `openclaw agents`, `openclaw plugins`) and then report the claim." + ERROR_EXPLAIN_INSTRUCTION
+          };
+        } else {
+          log("INFO", "State Claim Gate — state claim has verification evidence ✅", {
+            pattern: stateClaimPattern,
+            sessionKey: sessionKey.slice(0, 30)
+          });
+        }
+      }
+
+      // --- Layer 6e: Behavioral Integrity Gate ---
+      const overclaim = containsBehavioralOverclaim(content);
+      if (overclaim) {
+        log("BLOCK", "Behavioral Integrity Gate — potential overclaim", {
+          pattern: overclaim.pattern,
+          preview: overclaim.preview
+        });
+        return {
+          block: true,
+          blocked: true,
+          blockReason: "Behavioral Integrity Gate: Overclaim detected. Rephrase with evidence or qualifier."
+        };
+      }
+
+      // --- Layer 6d: Decision Bias Gate ---
+      // Detects when the agent presents multiple options where SOUL.md decision
+      // filters would narrow to one. If options are presented but one clearly
+      // wins on safety/cost/simplicity, warn to just act instead of asking.
+      const OPTION_PATTERNS = [
+        /\bOption\s+[A-C]\b/g,                          // Option A, Option B, Option C
+        /\b(?:option|choice)\s*(?:#?\s*)?[1-3]\b/ig,    // option 1, choice #2
+        /\*\*(?:Option|Choice)\s+[A-C1-3]\b/g,          // **Option A (markdown bold)
+        /^\s*[-•]\s*\*?\*?(?:Option|Choice)\s+/im,      // bullet lists with Option
+      ];
+      const ASKING_PATTERNS = [
+        /\bwant me to\b/i,
+        /\bwhich (?:would you|do you|option)\b/i,
+        /\bwhat do you (?:think|prefer|want)\b/i,
+        /\byour (?:call|choice|preference)\b/i,
+        /\bshould I\b/i,
+        /\blet me know\b/i,
+      ];
+      // Count distinct options
+      let optionCount = 0;
+      for (const pat of OPTION_PATTERNS) {
+        const matches = content.match(pat);
+        if (matches) optionCount = Math.max(optionCount, matches.length);
+      }
+      const isAskingUser = ASKING_PATTERNS.some(p => p.test(content));
+      if (optionCount >= 2 && isAskingUser) {
+        log("BLOCK", "Decision Bias Gate — presenting options instead of acting", {
+          optionCount,
+          contentPreview: content.slice(0, 120)
+        });
+        return { block: true, blockReason: "Decision Bias Gate: You presented " + optionCount + " options. Apply SOUL.md decision bias filters. If one option clearly wins, act — don't ask." };
+      }
+
+      // --- Layer 6h: Autonomous Development Gate ---
+      // Blocks design-level implementation claims without self-debate evidence.
+      const DESIGN_TRIGGERS = [
+        /\bnew\s+(?:system|architecture|protocol|framework|engine)\b/i,
+        /\bstrategic\s+decision\b/i,
+        /\bdesign-level\b/i,
+        /\bredesign(?:ing)?\b/i,
+      ];
+      const IMPLEMENTATION_INTENT = [
+        /\b(?:i(?:'ll|'m going to|'m)\s+(?:build|create|implement|design|architect))\b/i,
+        /\bbuilding\s+(?:a\s+)?new\b/i,
+        /\bcreating\s+(?:a\s+)?new\b/i,
+        /\bimplementing\s+(?:a\s+)?new\b/i,
+        /\blet me (?:build|create|implement)\b/i,
+      ];
+      const hasDesignTrigger = DESIGN_TRIGGERS.some(p => p.test(content));
+      const hasImplementationIntent = IMPLEMENTATION_INTENT.some(p => p.test(content));
+      if (hasDesignTrigger && hasImplementationIntent && content.length > 100) {
+        const sessionKey = ctx?.sessionKey || "";
+        const ev = turnEvidence.get(sessionKey);
+        const recentCalls = ev?.toolCalls || [];
+        const DEBATE_EVIDENCE = [/self-debate/i, /debate/i, /adversarial/i];
+        const hasDebate = recentCalls.slice(-20).some(call => {
+          const cmd = String(call.command || call.toolName || "");
+          return DEBATE_EVIDENCE.some(p => p.test(cmd));
+        });
+        if (!hasDebate) {
+          log("BLOCK", "Autonomous Development Gate — design-level work without self-debate", {
+            contentPreview: content.slice(0, 120),
+            sessionKey: sessionKey.slice(0, 30)
+          });
+          return {
+            block: true,
+            blocked: true,
+            blockReason: "🛡️ Autonomous Development Gate: Design-level implementation detected without self-debate evidence. Run self-debate (≥5 rounds) before building new systems/architectures. See SOUL.md." + ERROR_EXPLAIN_INSTRUCTION
+          };
+        }
+        log("INFO", "Autonomous Development Gate — debate evidence found ✅", {
+          sessionKey: sessionKey.slice(0, 30)
+        });
+      }
+
+      // --- Layer 6i: Memory Log Gate ---
+      const memoryLogGateResult = checkMemoryLogGate(content);
+      if (memoryLogGateResult.block) {
+        log("BLOCK", "Memory Log Gate — blocked HEARTBEAT_OK", {
+          breadcrumbsFile: MEMORY_BREADCRUMBS_FILE,
+          heartbeatFile: MEMORY_HEARTBEAT_STATE_FILE,
+          contentPreview: content.slice(0, 40)
+        });
+        return memoryLogGateResult;
+      }
+
+      // --- Layer 6e: Research Gate — Force Perplexity via browser ---
+      // Block any research task that doesn't use Perplexity
+      const RESEARCH_PATTERNS = [
+        /\bresearch\b/i,
+        /\binvestigate\b/i,
+        /\bdeep\s+dive\b/i,
+        /\banalyze\b.*\blandscape\b/i,
+        /\btrends?\b/i,
+      ];
+      const researchMatch = RESEARCH_PATTERNS.some(p => p.test(content));
+      const hasPerplexity = content.toLowerCase().includes("perplexity") || (content.toLowerCase().includes("browser") && content.toLowerCase().includes("search"));
+      if (researchMatch && !hasPerplexity) {
+        log("BLOCK", "Research Gate: Research requested without Perplexity", { content: content.slice(0, 80) });
+        return {
+          block: true,
+          blockReason: "🛡️ Research Gate: All research must use Perplexity via browser. Use browser tool to navigate to perplexity.ai and run deep research there." + ERROR_EXPLAIN_INSTRUCTION
+        };
+      }
+
+      return outboundWarning ? { warning: outboundWarning } : {};
     } catch (err) {
       log("ERROR", "Message Gate error — failing open", { error: err.message });
       return {};
@@ -1042,7 +1642,7 @@ module.exports = function shieldGateExtension(api) {
           child: childAgent,
           taskPreview: task.slice(0, 100)
         });
-        return { block: true, blockReason: `[Codex-Only Gate] Coding agent "${childAgent}" is not allowed. Use Codex CLI (codex exec) for all implementation tasks. See SOUL.md orchestrator rules.` };
+        return { block: true, blockReason: `[Codex-Only Gate] Coding agent "${childAgent}" is not allowed. Use Codex CLI (codex exec) for all implementation tasks. See SOUL.md orchestrator rules.` + ERROR_EXPLAIN_INSTRUCTION };
       }
 
       // If it's a coding task spawned as a generic sub-agent, warn
@@ -1068,7 +1668,7 @@ module.exports = function shieldGateExtension(api) {
           });
           return {
             block: true,
-            blockReason: `[Delegation Protocol Gate] You must read DELEGATION_PROTOCOL.md before delegating coding tasks. This prevents the "throw task over the wall" failure mode. Read it, complete the checklist, then spawn again.`
+            blockReason: `[Delegation Protocol Gate] You must read DELEGATION_PROTOCOL.md before delegating coding tasks. This prevents the "throw task over the wall" failure mode. Read it, complete the checklist, then spawn again.` + ERROR_EXPLAIN_INSTRUCTION
           };
         } else {
           log("INFO", "Delegation Protocol Gate — protocol read confirmed", {
@@ -1139,13 +1739,12 @@ module.exports = function shieldGateExtension(api) {
       if (fs.existsSync(LOGICIAN_SOCK)) {
         const proves = logicianProves(`spawn_allowed(/${parentAgent}, /${childAgent})`);
         if (!proves) {
-          log("WARN", "Logician: spawn not in permission set (log-only)", {
+          log("BLOCK", "Logician: spawn not in permission set", {
             parent: parentAgent,
             child: childAgent,
             allowed: false
           });
-          // TODO: enforce after validation period
-          // return { block: true, blockReason: `[Logician] Agent "${parentAgent}" not authorized to spawn "${childAgent}".` };
+          return { block: true, blockReason: "Spawn Permission Gate: agent '" + parentAgent + "' cannot spawn '" + childAgent + "'" };
         } else {
           log("INFO", "Logician: spawn permitted", { parent: parentAgent, child: childAgent });
         }
