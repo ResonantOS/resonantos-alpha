@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Discord Community
+    url: https://discord.gg/MRESQnf4R4
+    about: Join our Discord for real-time chat, questions, and collaboration
+  - name: 🗣️ GitHub Discussions
+    url: https://github.com/ManoloRemiddi/resonantos-alpha/discussions
+    about: Ask questions, share ideas, and engage in longer-form discussions
+  - name: 🔒 Security Vulnerability
+    url: https://github.com/ManoloRemiddi/resonantos-alpha/security
+    about: Report security issues privately (DO NOT open public issues)
